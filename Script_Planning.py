@@ -71,7 +71,7 @@ def generer_planning():
         jours_diff = row["Jours de Diffusion"]
 
         avancement = 0
-        for i in range(7):
+        for i in range(config.NB_JOURS_GENERATION):
             date_envoi = date_debut + timedelta(days=i)
             jour_nom = jour_fr(date_envoi)
 
