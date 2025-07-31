@@ -23,10 +23,8 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Write Google credentials
-        run: |
-          echo "${{ secrets.GOOGLE_CREDENTIALS }}" | sed 's/\\n/\n/g' > credentials.json
-
+      - name: Write Google credentials (base64)
+        run: echo "${{ secrets.GOOGLE_CREDENTIALS_B64 }}" | base64 -d > credentials.json
 
       - name: Show credentials.json (debug)
         run: cat credentials.json
