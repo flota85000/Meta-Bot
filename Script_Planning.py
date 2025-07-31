@@ -115,10 +115,15 @@ def generer_planning():
             "type", "avancement", "message", "format", "url", "envoye"
         ])
 
+    #suppression des vieux message envoyé
     if not df_existant.empty:
         df_existant['date'] = pd.to_datetime(df_existant['date'])
+        # Correction : rendre la colonne date timezone-aware
+        if df_existant['date'].dt.tz is None:
+            df_existant['date'] = df_existant['date'].dt.tz_localize('Europe/Paris')
         mask = ~((df_existant['envoye'].str.lower() == 'oui') & (df_existant['date'] < aujourdhui))
         df_existant = df_existant[mask].copy()
+
     
     # --- Uniformisation des types ---
     df_nouveau["programme"] = df_nouveau["programme"].astype(str).apply(
