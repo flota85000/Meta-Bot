@@ -1,5 +1,7 @@
-# === CONFIGURATION CENTRALE ===
-CHEMIN_CLE_JSON = "google_service_account.json"
+import os
+
+# Clé JSON Google (chemin, par défaut "credentials.json" dans le workflow)
+CHEMIN_CLE_JSON = os.environ.get("CHEMIN_CLE_JSON", "credentials.json")
 
 # Google Sheet – Fichiers
 FICHIER_CLIENTS = "Suivi Programme et heure client"
@@ -10,8 +12,8 @@ FICHIER_PROGRAMMES = "Méta-université_Programmes"
 FEUILLE_CLIENTS = "Clients"
 FEUILLE_PLANNING = "Planning"
 
-# === 🔐 API Telegram ===
-TELEGRAM_TOKEN = '7476882341:AAH2bDRNmmbHnySOHebB0JExMDD94z3IkDo'
+# === API Telegram ===
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 
 # === ⏱️ Autres paramètres
 NB_JOURS_GENERATION = 30  # Nombre de jours de planning à générer
