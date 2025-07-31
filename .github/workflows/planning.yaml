@@ -29,7 +29,10 @@ jobs:
       - name: Run Script_Planning
         env:
           FICHIER_PLANNING: ${{ secrets.FICHIER_PLANNING }}
+          FICHIER_PROGRAMMES: ${{ secrets.FICHIER_PROGRAMMES }}
+          FICHIER_CLIENTS: ${{ secrets.FICHIER_CLIENTS }}
           FEUILLE_PLANNING: ${{ secrets.FEUILLE_PLANNING }}
+          FEUILLE_CLIENTS: ${{ secrets.FEUILLE_CLIENTS }}
           CHEMIN_CLE_JSON: credentials.json
         run: |
           python Script_Planning.py
