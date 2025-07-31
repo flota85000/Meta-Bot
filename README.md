@@ -29,7 +29,6 @@
 | `.github/workflows/bot.yaml`        | Cron pour automatiser l’envoi régulier via GitHub Actions                                   |
 | `.github/workflows/planning.yaml`   | Cron pour la génération quotidienne du planning                                             |
 | `README.md`                         | Ce fichier                                                                                  |
-| `template/`                         | Modèles de fichiers Google Sheets pour faciliter la configuration initiale                  |
 | `google_service_account.json`       | Clé API Google pour accès aux fichiers Sheets (à placer dans les secrets, jamais en clair)  |
 
 ---
@@ -94,8 +93,6 @@
   - `chat_id`
   - `message`
   - `envoye`
-
-> Un dossier `/template` contient des exemples de chaque fichier avec les bonnes colonnes pour démarrer facilement.
 
 ---
 
