@@ -1,0 +1,36 @@
+name: Bot Telegram Cron
+
+on:
+  schedule:
+    - cron: '1 * * * *'    # Toutes les heures à la minute 11 (adapte si besoin)
+  workflow_dispatch:         # Permet de lancer à la main depuis GitHub
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'   # Ou la version que tu veux
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Write Google credentials
+        run: |
+          echo "${{ secrets.GOOGLE_CREDENTIALS }}" > credentials.json
+
+      - name: Run Script_Bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          FICHIER_PLANNING: ${{ secrets.FICHIER_PLANNING }}
+          FEUILLE_PLANNING: ${{ secrets.FEUILLE_PLANNING }}
+          CHEMIN_CLE_JSON: credentials.json
+        run: |
+          python Script_Bot.py
