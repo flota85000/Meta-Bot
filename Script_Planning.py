@@ -155,10 +155,18 @@ def generer_planning():
     df_merge = df_merge.reindex(columns=colonnes_planning)
 
     # --- Pré-tri ---
-    df_merge["datetime"] = pd.to_datetime(df_merge["date"] + " " +
-                                          df_merge["heure"])
+    # S'assurer que les dates sont bien timezone-aware Europe/Paris
+    df_merge["date"] = pd.to_datetime(df_merge["date"], errors='coerce')
+    if df_merge["date"].dt.tz is None:
+        df_merge["date"] = df_merge["date"].dt.tz_localize('Europe/Paris')
+    else:
+        df_merge["date"] = df_merge["date"].dt.tz_convert('Europe/Paris')
+    
+    # Création de la colonne datetime pour le tri, puis tri
+    df_merge["datetime"] = df_merge["date"] + pd.to_timedelta(df_merge["heure"])
     df_merge.sort_values(by="datetime", inplace=True)
     df_merge.drop(columns="datetime", inplace=True)
+
 
     # --- Préchargement des programmes ---
     programmes_charges = defaultdict(pd.DataFrame)
