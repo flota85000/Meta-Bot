@@ -61,7 +61,6 @@ def lancer_bot():
 
     print("✅ Fichier planning mis à jour après envois.")
     print("Heure actuelle : ", maintenant.strftime("%Y-%m-%d %H:%M:%S"))
-    print("TELEGRAM_TOKEN = ", repr(config.TELEGRAM_TOKEN))
-
+    
 if __name__ == "__main__":
     lancer_bot()
