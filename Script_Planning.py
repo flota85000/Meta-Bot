@@ -65,6 +65,14 @@ def generer_planning():
         date_debut = row["Date de Démarrage"]
         jours_diff = row["Jours de Diffusion"]
 
+        # Forcer date_debut à être timezone-aware Europe/Paris
+        if pd.isna(date_debut):  # au cas où
+            continue
+        if date_debut.tzinfo is None:
+            date_debut = paris.localize(date_debut)
+        else:
+            date_debut = date_debut.astimezone(paris)
+        
         for i in range(NB_JOURS):
             date_envoi = window_start + timedelta(days=i)
             if date_envoi >= date_debut:
