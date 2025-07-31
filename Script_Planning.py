@@ -71,7 +71,7 @@ def generer_planning():
         jours_diff = row["Jours de Diffusion"]
 
         avancement = 0
-        for i in range(30):
+        for i in range(7):
             date_envoi = date_debut + timedelta(days=i)
             jour_nom = jour_fr(date_envoi)
 
@@ -102,12 +102,13 @@ def generer_planning():
     records = ws_planning.get_all_records()
 
     if records:
-        df_existant = pd.DataFrame(records)
+         df_existant = pd.DataFrame(records)
     else:
         df_existant = pd.DataFrame(columns=[
             "client", "programme", "saison", "chat_id", "date", "heure",
-            "type", "avancement", "message", "envoye"
+            "type", "avancement", "message", "format", "url", "envoye"
         ])
+
 
     # --- Uniformisation des types ---
     df_nouveau["programme"] = df_nouveau["programme"].astype(str).apply(
@@ -127,6 +128,18 @@ def generer_planning():
     ],
                              keep="first",
                              inplace=True)
+
+    # --- Vérifie et ajoute les colonnes format et url si besoin ---
+    colonnes_planning = [
+        "client", "programme", "saison", "chat_id", "date", "heure",
+        "type", "avancement", "message", "format", "url", "envoye"
+    ]
+    for col in colonnes_planning:
+        if col not in df_merge.columns:
+            df_merge[col] = ""
+
+    # Réorganise l’ordre des colonnes pour garder la structure propre
+    df_merge = df_merge.reindex(columns=colonnes_planning)
 
     # --- Pré-tri ---
     df_merge["datetime"] = pd.to_datetime(df_merge["date"] + " " +
@@ -152,9 +165,13 @@ def generer_planning():
     }
 
     messages_remplis = []
+    formats_remplis = []
+    urls_remplis = []
     for _, row in df_merge.iterrows():
         if pd.notna(row["message"]) and row["message"].strip() != "":
             messages_remplis.append(row["message"])
+            formats_remplis.append(row.get("format", "texte"))
+            urls_remplis.append(row.get("url", ""))
             continue
 
         programme = row["programme"]
@@ -166,11 +183,22 @@ def generer_planning():
         filtre = ((df_prog["Saison"] == saison) & (df_prog["Jour"] == jour) &
                   (df_prog["Type"] == type_excel))
         ligne = df_prog[filtre]
-        message = f"Jour {jour} : {row['type']} : {ligne.iloc[0]['Phrase']}" if not ligne.empty else ""
-        messages_remplis.append(message)
+        if not ligne.empty:
+            phrase = ligne.iloc[0].get("Phrase", "")
+            format_msg = ligne.iloc[0].get("Format", "texte").strip().lower()
+            url_msg = ligne.iloc[0].get("Url", "")
+            messages_remplis.append(f"Jour {jour} : {row['type']} : {phrase}")
+            formats_remplis.append(format_msg)
+            urls_remplis.append(url_msg)
+        else:
+            messages_remplis.append("")
+            formats_remplis.append("texte")
+            urls_remplis.append("")
+
 
     df_merge["message"] = messages_remplis
-
+    df_merge["format"] = formats_remplis
+    df_merge["url"] = urls_remplis
     # --- Sauvegarde dans Google Sheet ---
     ws_planning.clear()
     ws_planning.update([df_merge.columns.values.tolist()] +
