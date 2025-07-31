@@ -13,7 +13,8 @@ FEUILLE_CLIENTS = "Clients"
 FEUILLE_PLANNING = "Planning"
 
 # === API Telegram ===
-TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', 'VOTRE_TOKEN_PAR_DEFAUT')
+
 
 # === ⏱️ Autres paramètres
 NB_JOURS_GENERATION = 30  # Nombre de jours de planning à générer
