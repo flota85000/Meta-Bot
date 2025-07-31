@@ -79,7 +79,7 @@ def generer_planning():
             date_envoi = date_debut + timedelta(days=i)
             jour_nom = jour_fr(date_envoi)
 
-            if jour_nom in jours_diff and date_envoi >= date_debut::
+            if jour_nom in jours_diff and date_envoi >= date_debut:
                 avancement = (date_envoi - date_debut).days + 1
                 for type_msg, col_heure in type_to_heure.items():
                     heure = row[col_heure]
