@@ -1,5 +1,6 @@
 name: Bot Telegram Cron
 
+
 on:
   schedule:
     - cron: '1 * * * *'    # Toutes les heures à la minute 11 (adapte si besoin)
@@ -26,6 +27,9 @@ jobs:
         run: |
           echo "${{ secrets.GOOGLE_CREDENTIALS }}" > credentials.json
 
+      - name: Show credentials.json (debug)
+        run: cat credentials.json
+        
       - name: Run Script_Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
