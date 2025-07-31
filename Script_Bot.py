@@ -11,7 +11,7 @@ def lancer_bot():
     # --- Authentification Google Sheets ---
     scope = [
         "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive"
+        "https://www.googleapis.com/auth/drive"
     ]
     creds = Credentials.from_service_account_file(config.CHEMIN_CLE_JSON,
                                                   scopes=scope)
@@ -33,18 +33,30 @@ def lancer_bot():
                    & (df['datetime'] <= maintenant)]
     print(f"\U0001F4E4 {len(a_envoyer)} message(s) à envoyer...")
 
-    # --- Envoi des messages ---
-    url = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendMessage"
-
+    # --- Envoi des messages avec gestion de format ---
     for i, row in a_envoyer.iterrows():
         chat_id = str(row["chat_id"])
-        texte = row["message"]
+        texte = row.get("message", "")
+        format_msg = row.get("format", "").strip().lower()
+        url_media = row.get("url", "").strip()
 
-        payload = {'chat_id': chat_id, 'text': texte}
+        # Envoi selon le format
+        if format_msg == "image" and url_media:
+            url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendPhoto"
+            payload = {'chat_id': chat_id, 'caption': texte, 'photo': url_media}
+        elif format_msg == "video" and url_media:
+            url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendVideo"
+            payload = {'chat_id': chat_id, 'caption': texte, 'video': url_media}
+        elif format_msg == "audio" and url_media:
+            url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendAudio"
+            payload = {'chat_id': chat_id, 'caption': texte, 'audio': url_media}
+        else:  # Cas texte ou format non reconnu ou pas d'URL
+            url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendMessage"
+            payload = {'chat_id': chat_id, 'text': texte}
 
-        r = requests.post(url, data=payload)
+        r = requests.post(url_api, data=payload)
         if r.status_code == 200:
-            print(f"✅ Envoyé à {chat_id} : {texte[:30]}...")
+            print(f"✅ Envoyé à {chat_id} [{format_msg}] : {texte[:30]}{'...' if len(texte)>30 else ''}")
             df.at[i, 'envoye'] = 'oui'
         else:
             print(f"❌ Erreur à {chat_id} : {r.text}")
@@ -62,5 +74,6 @@ def lancer_bot():
     print("✅ Fichier planning mis à jour après envois.")
     print("Heure actuelle : ", maintenant.strftime("%Y-%m-%d %H:%M:%S"))
     
+
 if __name__ == "__main__":
     lancer_bot()
