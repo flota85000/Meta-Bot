@@ -3,7 +3,7 @@ name: Bot Telegram Cron
 
 on:
   schedule:
-    - cron: '48 * * * *'    # Toutes les heures à la minute 11 (adapte si besoin)
+    - cron: '1 * * * *'    # Toutes les heures à la minute 11 (adapte si besoin)
   workflow_dispatch:         # Permet de lancer à la main depuis GitHub
 
 jobs:
