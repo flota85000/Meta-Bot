@@ -3,7 +3,7 @@ name: Bot Telegram Cron
 
 on:
   schedule:
-    - cron: '1 * * * *'    # Toutes les heures à la minute 11 (adapte si besoin)
+    - cron: '* * * * *'    # Toutes les heures à la minute 11 (adapte si besoin)
   workflow_dispatch:         # Permet de lancer à la main depuis GitHub
 
 jobs:
@@ -25,9 +25,6 @@ jobs:
 
       - name: Write Google credentials (base64)
         run: echo "${{ secrets.GOOGLE_CREDENTIALS_B64 }}" | base64 -d > credentials.json
-
-      - name: Show credentials.json (debug)
-        run: cat credentials.json
         
       - name: Run Script_Bot
         env:
