@@ -27,6 +27,17 @@ def lancer_bot():
     maintenant = datetime.now(paris)
     df['datetime'] = pd.to_datetime(df['date'] + ' ' +
                                     df['heure']).dt.tz_localize(paris)
+    # --- Nettoyage des champs date et heure (pour virer les ' et espaces) ---
+    df['date'] = df['date'].astype(str).str.replace("'", "").str.strip()
+    df['heure'] = df['heure'].astype(str).str.replace("'", "").str.strip()
+
+    # --- Fusion et conversion en datetime robuste ---
+    df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['heure'], errors='coerce')
+
+    # --- (Optionnel) Affiche les lignes mal parsées pour debug ---
+    if df['datetime'].isna().any():
+        print("❗️ Lignes au format invalide :")
+        print(df[df['datetime'].isna()][['date', 'heure']])
 
     # --- Filtrage ---
     a_envoyer = df[(df['envoye'].str.lower() == 'non')
