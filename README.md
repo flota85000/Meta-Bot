@@ -1,23 +1,5 @@
 # MetaBot – Assistant d'envoi Telegram automatique
 
-## Sommaire
-
-1. [Description du projet](#description-du-projet)
-2. [Fonctionnalités principales](#fonctionnalités-principales)
-3. [Structure des fichiers](#structure-des-fichiers)
-4. [Explication des scripts](#explication-des-scripts)
-5. [Configuration (`config.py` et `requirements.txt`)](#configuration-configpy-et-requirementstxt)
-6. [Organisation des fichiers Google Sheets](#organisation-des-fichiers-google-sheets)
-7. [Dossier template Google Sheets](#dossier-template-google-sheets)
-8. [Automatisation via GitHub Actions (Cron)](#automatisation-via-github-actions-cron)
-9. [Logs, erreurs, et debug](#logs-erreurs-et-debug)
-10. [Gestion des secrets GitHub Actions](#gestion-des-secrets-github-actions)
-11. [Procédure de modification et maintenance](#procédure-de-modification-et-maintenance)
-12. [FAQ et points de vigilance](#faq-et-points-de-vigilance)
-13. [Améliorations prévues](#améliorations-prévues)
-14. [Contact & support](#contact--support)
-
----
 
 ## 1. Description du projet
 
@@ -72,22 +54,7 @@
 
 ---
 
-## 5. Configuration (`config.py` et `requirements.txt`)
-
-- **`config.py`** :  
-  À renseigner :
-  - Le nom exact des fichiers Google Sheets
-  - Le nom des feuilles utilisées (Clients, Planning, etc.)
-  - Le token Telegram (injecté depuis les secrets GitHub Actions)
-  - Le chemin vers le credentials Google (généralement `credentials.json`, injecté depuis les secrets GitHub)
-  - Les paramètres horaires si besoin
-
-- **`requirements.txt`** :  
-  À installer via :
-  ```bash
-  pip install -r requirements.txt
-
-## 6. Organisation des fichiers Google Sheets
+## 5. Organisation des fichiers Google Sheets
 
 ### Trois fichiers principaux :
 
@@ -132,14 +99,7 @@
 
 ---
 
-## 7. Dossier template Google Sheets
-
-- Contient des modèles pré-remplis pour chaque type de fichier nécessaire
-- À dupliquer directement sur Google Drive pour initialiser une nouvelle instance du bot
-
----
-
-## 8. Automatisation via GitHub Actions (Cron)
+## 6. Automatisation via GitHub Actions (Cron)
 
 - `bot.yaml` : Exécute `Script_Bot.py` toutes les heures (`cron 0 * * * *`)
 - `planning.yaml` : Exécute `Script_Planning.py` chaque jour (`cron 0 2 * * *`)
@@ -148,17 +108,7 @@
 
 ---
 
-## 9. Logs, erreurs, et debug
-
-- Les erreurs sont loggées automatiquement (fichier `journal_erreurs.log` si activé dans `config.py`)
-- Pour debug :
-    - Regarder les logs des Actions GitHub (historique complet, erreurs Python, outputs `print`)
-    - Vérifier les valeurs dans Google Sheets (notamment la colonne `envoye`)
-    - Ajouter des prints ou logs supplémentaires en cas de besoin
-
----
-
-## 10. Gestion des secrets GitHub Actions
+## 7. Gestion des secrets GitHub Actions
 
 - Onglet : `Settings > Secrets and variables > Actions`
 - **Secrets obligatoires :**
@@ -169,12 +119,11 @@
 
 ---
 
-## 11. Procédure de modification et maintenance
+## 8. Procédure de modification et maintenance
 
 - **Pour modifier :**
     - Un paramètre : éditer `config.py` ou le secret concerné
     - Un script : modifier le `.py`, commit, et push (l’Action se relance automatiquement)
-    - Un template Google Sheet : remplacer le modèle dans `/template`
 
 - **Pour voir les logs/débug :**
     - GitHub : onglet Actions > sélectionner le workflow et le run
@@ -184,7 +133,7 @@
 
 ---
 
-## 12. FAQ et points de vigilance
+## 9. FAQ et points de vigilance
 
 **Pourquoi un message n’est pas envoyé ?**  
 → Vérifier le format de la date et heure, la colonne `envoye`, le `chat_id`, le token…
@@ -200,23 +149,10 @@
 
 ---
 
-## 13. Améliorations prévues
-
-| Tâche                                 | Statut     |
-| ------------------------------------- | ---------- |
-| Fichier de logs détaillés             | En cours   |
-| Rapport quotidien sur Telegram admin  | À venir    |
-| Interface de paramétrage simplifiée   | À discuter |
-| Notifications en cas d’échec d’envoi  | À venir    |
-| Gestion multi-projet / multi-instance | À discuter |
-
----
-
-## 14. Contact & support
+## 10. Contact & support
 
 Pour toute question ou assistance :
 
-- Contacter le responsable du projet (`ton_mail@exemple.com` ou Telegram)
-- Ou créer une “Issue” sur le repo GitHub
+- Contacter le responsable du projet (`aubinherault64@gmail.com`)
 
 > Projet conçu pour être **maintenable**, **sécurisé**, et **adaptable** sans compétences techniques avancées.
