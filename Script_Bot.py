@@ -44,15 +44,14 @@ def lancer_bot():
         if format_msg == "image" and url_media:
             url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendPhoto"
             payload = {'chat_id': chat_id, 'caption': texte, 'photo': url_media}
-        elif format_msg == "video" and url_media:
-            url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendVideo"
-            payload = {'chat_id': chat_id, 'caption': texte, 'video': url_media}
-        elif format_msg == "audio" and url_media:
-            url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendAudio"
-            payload = {'chat_id': chat_id, 'caption': texte, 'audio': url_media}
-        else:  # Cas texte ou format non reconnu ou pas d'URL
+        else:
+            # Format texte ou non reconnu : on concatène le lien s'il existe
+            if url_media:
+                texte_final = f"{texte}\n{url_media}"
+            else:
+                texte_final = texte
             url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendMessage"
-            payload = {'chat_id': chat_id, 'text': texte}
+            payload = {'chat_id': chat_id, 'text': texte_final}
 
         r = requests.post(url_api, data=payload)
         if r.status_code == 200:
