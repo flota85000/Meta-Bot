@@ -221,10 +221,14 @@ def generer_planning():
     df_merge["format"] = formats_remplis
     df_merge["url"] = urls_remplis
     
+   
     # --- Sauvegarde dans Google Sheet ---
+    for col in df_merge.columns:
+        df_merge[col] = df_merge[col].astype(str)
+    
     ws_planning.clear()
-    ws_planning.update([df_merge.columns.values.tolist()] +
-                       df_merge.values.tolist())
+    ws_planning.update([df_merge.columns.values.tolist()] + df_merge.values.tolist())
+
 
     paris = pytz.timezone("Europe/Paris")
     print(
