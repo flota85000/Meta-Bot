@@ -59,6 +59,10 @@ def generer_planning():
         "Aphorisme": "Heure Aphorisme",
         "Réflexion": "Heure Réflexion"
     }
+      # --- Paramètres durée de génération ---
+    NB_JOURS = config.NB_JOURS_GENERATION 
+    paris = pytz.timezone("Europe/Paris")
+    aujourdhui = datetime.now(paris).replace(hour=0, minute=0, second=0, microsecond=0)
 
     # --- Génération du planning ---
     planning = []
@@ -71,12 +75,12 @@ def generer_planning():
         jours_diff = row["Jours de Diffusion"]
 
         avancement = 0
-        for i in range(config.NB_JOURS_GENERATION):
+        for i in range(NB_JOURS):
             date_envoi = date_debut + timedelta(days=i)
             jour_nom = jour_fr(date_envoi)
 
-            if jour_nom in jours_diff:
-                avancement += 1
+            if jour_nom in jours_diff and date_envoi >= date_debut::
+                avancement = (date_envoi - date_debut).days + 1
                 for type_msg, col_heure in type_to_heure.items():
                     heure = row[col_heure]
                     if pd.notna(heure):
@@ -90,6 +94,8 @@ def generer_planning():
                             "type": type_msg,
                             "avancement": avancement,
                             "message": "",
+                            "format": "",
+                            "url": "",
                             "envoye": "non"
                         })
 
@@ -109,15 +115,17 @@ def generer_planning():
             "type", "avancement", "message", "format", "url", "envoye"
         ])
 
-
+    if not df_existant.empty:
+        df_existant['date'] = pd.to_datetime(df_existant['date'])
+        mask = ~((df_existant['envoye'].str.lower() == 'oui') & (df_existant['date'] < aujourdhui))
+        df_existant = df_existant[mask].copy()
+    
     # --- Uniformisation des types ---
     df_nouveau["programme"] = df_nouveau["programme"].astype(str).apply(
         lambda x: f"{int(x):03}")
     df_existant["programme"] = df_existant["programme"].astype(str).apply(
         lambda x: f"{int(x):03}" if x else "")
-    for col in [
-            "client", "chat_id", "date", "heure", "type", "message", "envoye"
-    ]:
+    for col in ["client", "chat_id", "date", "heure", "type", "message", "envoye", "format", "url"]:
         df_nouveau[col] = df_nouveau[col].astype(str)
         df_existant[col] = df_existant[col].astype(str)
 
@@ -199,6 +207,7 @@ def generer_planning():
     df_merge["message"] = messages_remplis
     df_merge["format"] = formats_remplis
     df_merge["url"] = urls_remplis
+    
     # --- Sauvegarde dans Google Sheet ---
     ws_planning.clear()
     ws_planning.update([df_merge.columns.values.tolist()] +
