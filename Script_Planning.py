@@ -117,18 +117,16 @@ def generer_planning():
             df_existant[c] = ""
     else:
         df_existant = pd.DataFrame(columns=colonnes_planning)
-
-    window_start = datetime.now(paris)
-    window_end += timedelta(hours=23, minutes=59, seconds=59)
-    # --- Nettoyage : NE GARDER que les non envoyés DANS la fenêtre ---
+        
+    # --- Nettoyage : NE GARDER que la fenêtre ---
     if not df_existant.empty:
         # S'assure que 'date' existe, puis parse
         if 'date' in df_existant.columns:
-            df_existant['date'] = pd.to_datetime(df_existant['date'], errors="coerce", format="%Y-%m-%d %H:%M:%S")
+            df_existant['date'] = pd.to_datetime(df_existant['date'], errors="coerce", format="%Y-%m-%d")
             # Localise tz si besoin
             if df_existant['date'].dt.tz is None:
                 df_existant['date'] = df_existant['date'].dt.tz_localize('Europe/Paris')
-            # Filtre : non envoyés et date dans [window_start, window_end]
+            # Filtre : date dans [window_start, window_end]
             mask = (
                 (df_existant['date'] >= window_start)
                 & (df_existant['date'] <= window_end)
@@ -152,12 +150,18 @@ def generer_planning():
     df_nouveau = df_nouveau.reindex(columns=colonnes_planning)
     df_existant = df_existant.reindex(columns=colonnes_planning)
 
+    #test
+    print(df_existant[df_existant["envoye"] == "oui"])
+
     # --- Fusion sans doublons ---
     df_merge = pd.concat([df_existant, df_nouveau], ignore_index=True)
     df_merge.drop_duplicates(subset=[
         "client", "programme", "saison", "chat_id", "date", "heure", "type"
     ], keep="first", inplace=True)
     df_merge = df_merge.reindex(columns=colonnes_planning)
+
+    #test
+    print(df_existant[df_existant["envoye"] == "oui"])
 
     # --- Pré-tri pour affichage ---
     df_merge["date"] = pd.to_datetime(df_merge["date"], errors="coerce", format="%Y-%m-%d")
