@@ -165,10 +165,15 @@ def generer_planning():
 
     # --- Pré-tri pour affichage ---
     df_merge["date"] = pd.to_datetime(df_merge["date"], errors="coerce", format="%Y-%m-%d")
-    
+
+       #test
+    print(df_existant[df_existant["envoye"] == "oui"])
     # PATCH ANTI-NAT
     df_merge = df_merge.dropna(subset=["date", "heure"])
     df_merge = df_merge[(df_merge["date"] != "NaT") & (df_merge["heure"] != "NaT")]
+
+       #test
+    print(df_existant[df_existant["envoye"] == "oui"])
     
     # suppeession des doublons
     df_merge["datetime"] = pd.to_datetime(
@@ -179,7 +184,8 @@ def generer_planning():
     df_merge.sort_values(by="datetime", inplace=True)
     df_merge.drop(columns="datetime", inplace=True)
 
-
+   #test
+    print(df_existant[df_existant["envoye"] == "oui"])
 
     # --- Préchargement des programmes ---
     programmes_charges = defaultdict(pd.DataFrame)
