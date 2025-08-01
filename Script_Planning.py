@@ -117,12 +117,14 @@ def generer_planning():
             df_existant[c] = ""
     else:
         df_existant = pd.DataFrame(columns=colonnes_planning)
-    
+
+    window_start = datetime.now(paris)
+    window_end += timedelta(hours=23, minutes=59, seconds=59)
     # --- Nettoyage : NE GARDER que les non envoyés DANS la fenêtre ---
     if not df_existant.empty:
         # S'assure que 'date' existe, puis parse
         if 'date' in df_existant.columns:
-            df_existant['date'] = pd.to_datetime(df_existant['date'], errors="coerce", format="%Y-%m-%d")
+            df_existant['date'] = pd.to_datetime(df_existant['date'], errors="coerce", format="%Y-%m-%d %H:%M:%S")
             # Localise tz si besoin
             if df_existant['date'].dt.tz is None:
                 df_existant['date'] = df_existant['date'].dt.tz_localize('Europe/Paris')
