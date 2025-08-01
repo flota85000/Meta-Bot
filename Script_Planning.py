@@ -149,15 +149,20 @@ def generer_planning():
 
     # --- Pré-tri pour affichage ---
     df_merge["date"] = pd.to_datetime(df_merge["date"], errors="coerce", format="%Y-%m-%d")
-    # Créer 'datetime' : concatène 'date' + 'heure' puis parse en datetime complet
+    
+    # PATCH ANTI-NAT
+    df_merge = df_merge.dropna(subset=["date", "heure"])
+    df_merge = df_merge[(df_merge["date"] != "NaT") & (df_merge["heure"] != "NaT")]
+    
+    # suppeession des doublons
     df_merge["datetime"] = pd.to_datetime(
         df_merge["date"].dt.strftime("%Y-%m-%d") + " " + df_merge["heure"],
         format="%Y-%m-%d %H:%M:%S", errors="coerce"
     )
-    # Localiser timezone si tu veux vraiment Paris
     df_merge["datetime"] = df_merge["datetime"].dt.tz_localize('Europe/Paris', ambiguous='NaT', nonexistent='NaT')
     df_merge.sort_values(by="datetime", inplace=True)
     df_merge.drop(columns="datetime", inplace=True)
+
 
 
     # --- Préchargement des programmes ---
