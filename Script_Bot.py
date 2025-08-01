@@ -36,7 +36,7 @@ def lancer_bot():
     for idx, row in df.iterrows():
         ligne_excel = idx + 1
         if pd.isna(row['datetime']):
-            print(f"⚠️ Ligne {ligne_excel} ignorée (date/heure NaT ou mal formée) : {row.to_dict()}")
+            print(f"⚠️ Ligne {ligne_excel} ignorée (date/heure NaT ou mal formée) : {row['datetime']}")
     # --- Filtrage ---
     a_envoyer = df[(df['envoye'].str.lower() == 'non') & (df['datetime'] <= maintenant)]
     print(f"\U0001F4E4 {len(a_envoyer)} message(s) à envoyer...")
@@ -47,7 +47,7 @@ def lancer_bot():
         try:
             # Check des champs obligatoires
             if pd.isna(row["chat_id"]) or str(row["chat_id"]).strip() in ["", "nan", "None"]:
-                print(f"⚠️ Ligne {ligne_excel} ignorée (chat_id manquant) : {row.to_dict()}")
+                print(f"⚠️ Ligne {ligne_excel} ignorée (chat_id manquant)")
                 continue
             if pd.isna(row["message"]) or str(row["message"]).strip() == "":
                 continue
