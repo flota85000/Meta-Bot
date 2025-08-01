@@ -6,59 +6,78 @@ import config
 import gspread
 from google.oauth2.service_account import Credentials
 
-
 def lancer_bot():
     # --- Authentification Google Sheets ---
     scope = [
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive"
     ]
-    creds = Credentials.from_service_account_file(config.CHEMIN_CLE_JSON,
-                                                  scopes=scope)
+    creds = Credentials.from_service_account_file(config.CHEMIN_CLE_JSON, scopes=scope)
     client_gsheets = gspread.authorize(creds)
 
     # --- Accès au fichier Planning ---
-    ws_planning = client_gsheets.open(config.FICHIER_PLANNING).worksheet(
-        config.FEUILLE_PLANNING)
+    ws_planning = client_gsheets.open(config.FICHIER_PLANNING).worksheet(config.FEUILLE_PLANNING)
     df = pd.DataFrame(ws_planning.get_all_records())
+
+    # --- Vérification des colonnes minimales ---
+    for col in ['date', 'heure', 'chat_id', 'message', 'envoye', 'format', 'url']:
+        if col not in df.columns:
+            df[col] = ""
 
     # --- Heure actuelle ---
     paris = pytz.timezone("Europe/Paris")
     maintenant = datetime.now(paris)
-    df['datetime'] = pd.to_datetime(df['date'] + ' ' +
-                                    df['heure']).dt.tz_localize(paris)
+
+    # Gestion propre des dates/heure pour éviter bug
+    df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['heure'], errors="coerce")
+    # (Pas besoin de localize ici car on ne compare que sur le contenu)
 
     # --- Filtrage ---
-    a_envoyer = df[(df['envoye'].str.lower() == 'non')
-                   & (df['datetime'] <= maintenant)]
+    a_envoyer = df[(df['envoye'].str.lower() == 'non') & (df['datetime'] <= maintenant)]
     print(f"\U0001F4E4 {len(a_envoyer)} message(s) à envoyer...")
 
     # --- Envoi des messages avec gestion de format ---
     for i, row in a_envoyer.iterrows():
-        chat_id = str(row["chat_id"])
-        texte = row.get("message", "")
-        format_msg = row.get("format", "").strip().lower()
-        url_media = row.get("url", "").strip()
+        ligne_excel = i + 2  # ligne réelle dans Google Sheets (header +1)
+        try:
+            # Check des champs obligatoires
+            if pd.isna(row["chat_id"]) or str(row["chat_id"]).strip() in ["", "nan", "None"]:
+                print(f"⚠️ Ligne {ligne_excel} ignorée (chat_id manquant) : {row.to_dict()}")
+                continue
+            if pd.isna(row["datetime"]):
+                print(f"⚠️ Ligne {ligne_excel} ignorée (date/heure mal formées) : {row.to_dict()}")
+                continue
+            if pd.isna(row["message"]) or str(row["message"]).strip() == "":
+                continue
 
-        # Envoi selon le format
-        if format_msg == "image" and url_media:
-            url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendPhoto"
-            payload = {'chat_id': chat_id, 'caption': texte, 'photo': url_media}
-        else:
-            # Format texte ou non reconnu : on concatène le lien s'il existe
-            if url_media:
-                texte_final = f"{texte}\n{url_media}"
+            chat_id = str(row["chat_id"])
+            texte = row.get("message", "")
+            format_msg = row.get("format", "").strip().lower()
+            url_media = row.get("url", "").strip()
+
+            # Envoi selon le format
+            if format_msg == "image" and url_media:
+                url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendPhoto"
+                payload = {'chat_id': chat_id, 'caption': texte, 'photo': url_media}
             else:
-                texte_final = texte
-            url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendMessage"
-            payload = {'chat_id': chat_id, 'text': texte_final}
+                # Texte ou format non reconnu : concatène le lien s'il existe
+                if url_media:
+                    texte_final = f"{texte}\n{url_media}"
+                else:
+                    texte_final = texte
+                url_api = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendMessage"
+                payload = {'chat_id': chat_id, 'text': texte_final}
 
-        r = requests.post(url_api, data=payload)
-        if r.status_code == 200:
-            print(f"✅ Envoyé à {chat_id} [{format_msg}] : {texte[:30]}{'...' if len(texte)>30 else ''}")
-            df.at[i, 'envoye'] = 'oui'
-        else:
-            print(f"❌ Erreur à {chat_id} : {r.text}")
+            r = requests.post(url_api, data=payload)
+            if r.status_code == 200:
+                print(f"✅ Envoyé à {chat_id} [{format_msg}] : {texte[:30]}{'...' if len(texte)>30 else ''}")
+                df.at[i, 'envoye'] = 'oui'
+            else:
+                print(f"❌ Erreur à {chat_id} (ligne {ligne_excel}): {r.text}")
+
+        except Exception as e:
+            print(f"🚨 Ligne {ligne_excel} ignorée pour erreur : {str(e)} | Données : {row.to_dict()}")
+            continue  # Continue sur la ligne suivante, ne bloque jamais le bot !
 
     # --- Nettoyage et types ---
     df.drop(columns="datetime", inplace=True)
@@ -72,7 +91,6 @@ def lancer_bot():
 
     print("✅ Fichier planning mis à jour après envois.")
     print("Heure actuelle : ", maintenant.strftime("%Y-%m-%d %H:%M:%S"))
-    
 
 if __name__ == "__main__":
     lancer_bot()
