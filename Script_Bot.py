@@ -27,10 +27,11 @@ def lancer_bot():
     # --- Heure actuelle ---
     paris = pytz.timezone("Europe/Paris")
     maintenant = datetime.now(paris)
-
-    # Gestion propre des dates/heure pour éviter bug
+    
+    # Création de la colonne datetime
     df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['heure'], errors="coerce")
-    # (Pas besoin de localize ici car on ne compare que sur le contenu)
+    df['datetime'] = df['datetime'].dt.tz_localize(paris, ambiguous='NaT', nonexistent='NaT')
+
 
     # --- Filtrage ---
     a_envoyer = df[(df['envoye'].str.lower() == 'non') & (df['datetime'] <= maintenant)]
