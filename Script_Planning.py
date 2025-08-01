@@ -100,36 +100,47 @@ def generer_planning():
     df_nouveau = pd.DataFrame(planning)
 
     # --- Lecture planning existant ---
+    # --- Lecture planning existant ---
     ws_planning = client_gsheets.open(config.FICHIER_PLANNING).worksheet(config.FEUILLE_PLANNING)
     records = ws_planning.get_all_records()
-
+    
     colonnes_planning = [
         "client", "programme", "saison", "chat_id", "date", "heure",
         "type", "avancement", "message", "format", "url", "envoye"
     ]
-
+    
+    # Toujours forcer la présence de toutes les colonnes attendues
     if records:
         df_existant = pd.DataFrame(records)
+        missing_cols = [c for c in colonnes_planning if c not in df_existant.columns]
+        for c in missing_cols:
+            df_existant[c] = ""
     else:
         df_existant = pd.DataFrame(columns=colonnes_planning)
-
+    
     # --- Nettoyage : NE GARDER que les non envoyés DANS la fenêtre ---
     if not df_existant.empty:
-        df_existant['date'] = pd.to_datetime(df_existant['date'])
-        # Localise tz si besoin
-        if df_existant['date'].dt.tz is None:
-            df_existant['date'] = df_existant['date'].dt.tz_localize('Europe/Paris')
-        # Filtre : non envoyés et date dans [window_start, window_end]
-        mask = (
-            (df_existant['envoye'].str.lower() != 'oui')
-            & (df_existant['date'] >= window_start)
-            & (df_existant['date'] <= window_end)
-        )
-        df_existant = df_existant[mask].copy()
-        # Pour éviter les soucis, retype tout en str
-        for col in colonnes_planning:
-            if col in df_existant.columns:
-                df_existant[col] = df_existant[col].astype(str)
+        # S'assure que 'date' existe, puis parse
+        if 'date' in df_existant.columns:
+            df_existant['date'] = pd.to_datetime(df_existant['date'], errors="coerce", format="%Y-%m-%d")
+            # Localise tz si besoin
+            if df_existant['date'].dt.tz is None:
+                df_existant['date'] = df_existant['date'].dt.tz_localize('Europe/Paris')
+            # Filtre : non envoyés et date dans [window_start, window_end]
+            mask = (
+                (df_existant['envoye'].str.lower() != 'oui')
+                & (df_existant['date'] >= window_start)
+                & (df_existant['date'] <= window_end)
+            )
+            df_existant = df_existant[mask].copy()
+            # Pour éviter les soucis, retype tout en str
+            for col in colonnes_planning:
+                if col in df_existant.columns:
+                    df_existant[col] = df_existant[col].astype(str)
+        else:
+            # S'il n'y a pas de colonne 'date', on vide le DataFrame pour éviter d'autres bugs
+            df_existant = pd.DataFrame(columns=colonnes_planning)
+
 
     # --- Uniformisation des types pour fusion ---
     for col in colonnes_planning:
