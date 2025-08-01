@@ -151,7 +151,10 @@ def generer_planning():
     df_existant = df_existant.reindex(columns=colonnes_planning)
 
     #test
-    print(df_existant[df_existant["envoye"] == "oui"])
+    print(">>> EXISTANT AVANT FUSION <<<")
+print(df_existant[["client", "programme", "saison", "chat_id", "date", "heure", "type", "envoye"]])
+print(">>> NOUVEAU AVANT FUSION <<<")
+print(df_nouveau[["client", "programme", "saison", "chat_id", "date", "heure", "type", "envoye"]])
 
     # --- Fusion sans doublons ---
     df_merge = pd.concat([df_existant, df_nouveau], ignore_index=True)
@@ -160,21 +163,18 @@ def generer_planning():
     ], keep="first", inplace=True)
     df_merge = df_merge.reindex(columns=colonnes_planning)
 
-    #test
-    print(df_existant[df_existant["envoye"] == "oui"])
+#test
+    print(">>> MERGE APRÈS FUSION & DEDUP <<<")
+print(df_merge[["client", "programme", "saison", "chat_id", "date", "heure", "type", "envoye"]])
+
 
     # --- Pré-tri pour affichage ---
     df_merge["date"] = pd.to_datetime(df_merge["date"], errors="coerce", format="%Y-%m-%d")
 
-       #test
-    print(df_existant[df_existant["envoye"] == "oui"])
     # PATCH ANTI-NAT
     df_merge = df_merge.dropna(subset=["date", "heure"])
     df_merge = df_merge[(df_merge["date"] != "NaT") & (df_merge["heure"] != "NaT")]
 
-       #test
-    print(df_existant[df_existant["envoye"] == "oui"])
-    
     # suppeession des doublons
     df_merge["datetime"] = pd.to_datetime(
         df_merge["date"].dt.strftime("%Y-%m-%d") + " " + df_merge["heure"],
@@ -183,9 +183,6 @@ def generer_planning():
     df_merge["datetime"] = df_merge["datetime"].dt.tz_localize('Europe/Paris', ambiguous='NaT', nonexistent='NaT')
     df_merge.sort_values(by="datetime", inplace=True)
     df_merge.drop(columns="datetime", inplace=True)
-
-   #test
-    print(df_existant[df_existant["envoye"] == "oui"])
 
     # --- Préchargement des programmes ---
     programmes_charges = defaultdict(pd.DataFrame)
