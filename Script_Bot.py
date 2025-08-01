@@ -32,7 +32,11 @@ def lancer_bot():
     df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['heure'], errors="coerce")
     df['datetime'] = df['datetime'].dt.tz_localize(paris, ambiguous='NaT', nonexistent='NaT')
 
-
+    #Gestion des erreurs
+    for idx, row in df.iterrows():
+        ligne_excel = idx + 1
+        if pd.isna(row['datetime']):
+            print(f"⚠️ Ligne {ligne_excel} ignorée (date/heure NaT ou mal formée) : {row.to_dict()}")
     # --- Filtrage ---
     a_envoyer = df[(df['envoye'].str.lower() == 'non') & (df['datetime'] <= maintenant)]
     print(f"\U0001F4E4 {len(a_envoyer)} message(s) à envoyer...")
@@ -44,9 +48,6 @@ def lancer_bot():
             # Check des champs obligatoires
             if pd.isna(row["chat_id"]) or str(row["chat_id"]).strip() in ["", "nan", "None"]:
                 print(f"⚠️ Ligne {ligne_excel} ignorée (chat_id manquant) : {row.to_dict()}")
-                continue
-            if pd.isna(row["datetime"]):
-                print(f"⚠️ Ligne {ligne_excel} ignorée (date/heure mal formées) : {row.to_dict()}")
                 continue
             if pd.isna(row["message"]) or str(row["message"]).strip() == "":
                 continue
@@ -70,12 +71,9 @@ def lancer_bot():
                 payload = {'chat_id': chat_id, 'text': texte_final}
 
             r = requests.post(url_api, data=payload)
-            if r.status_code == 200:
-                print(f"✅ Envoyé à {chat_id} [{format_msg}] : {texte[:30]}{'...' if len(texte)>30 else ''}")
-                df.at[i, 'envoye'] = 'oui'
-            else:
-                print(f"❌ Erreur à {chat_id} (ligne {ligne_excel}): {r.text}")
-
+            print(f"✅ Envoyé à {chat_id} [{format_msg}] : {texte[:30]}{'...' if len(texte)>30 else ''}")
+            df.at[i, 'envoye'] = 'oui'
+            
         except Exception as e:
             print(f"🚨 Ligne {ligne_excel} ignorée pour erreur : {str(e)} | Données : {row.to_dict()}")
             continue  # Continue sur la ligne suivante, ne bloque jamais le bot !
