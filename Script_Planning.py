@@ -128,8 +128,7 @@ def generer_planning():
                 df_existant['date'] = df_existant['date'].dt.tz_localize('Europe/Paris')
             # Filtre : non envoyés et date dans [window_start, window_end]
             mask = (
-                (df_existant['envoye'].str.lower() != 'oui')
-                & (df_existant['date'] >= window_start)
+                (df_existant['date'] >= window_start)
                 & (df_existant['date'] <= window_end)
             )
             df_existant = df_existant[mask].copy()
