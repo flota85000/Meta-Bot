@@ -127,11 +127,12 @@ def generer_planning():
             if df_existant['date'].dt.tz is None:
                 df_existant['date'] = df_existant['date'].dt.tz_localize('Europe/Paris')
             # Filtre : non envoyés et date dans [window_start, window_end]
+            window_old = aujourdhui - timedelta(days=7) # ou ce que tu veux comme "retenue"
             mask = (
                 (df_existant['envoye'].str.lower() != 'oui')
-                & (df_existant['date'] >= window_start)
-                & (df_existant['date'] <= window_end)
+                & (df_existant['date'] >= window_old)
             )
+
             df_existant = df_existant[mask].copy()
             # Pour éviter les soucis, retype tout en str
             for col in colonnes_planning:
