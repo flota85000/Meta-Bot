@@ -36,7 +36,7 @@ def lancer_bot():
     for idx, row in df.iterrows():
         ligne_excel = idx + 1
         if pd.isna(row['datetime']):
-            print(f"⚠️ Ligne {ligne_excel} ignorée (date/heure NaT ou mal formée) : {row['datetime']}")
+            print(f"⚠️ Ligne {ligne_excel} ignorée (date/heure NaT ou mal formée)")
     # --- Filtrage ---
     a_envoyer = df[(df['envoye'].str.lower() == 'non') & (df['datetime'] <= maintenant)]
     print(f"\U0001F4E4 {len(a_envoyer)} message(s) à envoyer...")
