@@ -17,7 +17,7 @@ TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', 'VOTRE_TOKEN_PAR_DEFAUT')
 
 
 # === ⏱️ Autres paramètres
-NB_JOURS_GENERATION = 4 # Nombre de jours de planning à générer
+NB_JOURS_GENERATION = 2 # Nombre de jours de planning à générer
 FUSEAU_HORAIRE = "Europe/Paris"
 LANGUE = "fr_FR.UTF-8"
 
