@@ -152,9 +152,9 @@ def generer_planning():
 
     #test
     print(">>> EXISTANT AVANT FUSION <<<")
-print(df_existant[["client", "programme", "saison", "chat_id", "date", "heure", "type", "envoye"]])
-print(">>> NOUVEAU AVANT FUSION <<<")
-print(df_nouveau[["client", "programme", "saison", "chat_id", "date", "heure", "type", "envoye"]])
+    print(df_existant[["client", "programme", "saison", "chat_id", "date", "heure", "type", "envoye"]])
+    print(">>> NOUVEAU AVANT FUSION <<<")
+    print(df_nouveau[["client", "programme", "saison", "chat_id", "date", "heure", "type", "envoye"]])
 
     # --- Fusion sans doublons ---
     df_merge = pd.concat([df_existant, df_nouveau], ignore_index=True)
@@ -163,9 +163,9 @@ print(df_nouveau[["client", "programme", "saison", "chat_id", "date", "heure", "
     ], keep="first", inplace=True)
     df_merge = df_merge.reindex(columns=colonnes_planning)
 
-#test
+    #test
     print(">>> MERGE APRÈS FUSION & DEDUP <<<")
-print(df_merge[["client", "programme", "saison", "chat_id", "date", "heure", "type", "envoye"]])
+    print(df_merge[["client", "programme", "saison", "chat_id", "date", "heure", "type", "envoye"]])
 
 
     # --- Pré-tri pour affichage ---
