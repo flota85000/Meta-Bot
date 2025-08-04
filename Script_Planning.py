@@ -100,7 +100,6 @@ def generer_planning():
     df_nouveau = pd.DataFrame(planning)
 
     # --- Lecture planning existant ---
-    # --- Lecture planning existant ---
     ws_planning = client_gsheets.open(config.FICHIER_PLANNING).worksheet(config.FEUILLE_PLANNING)
     records = ws_planning.get_all_records()
     
@@ -149,6 +148,9 @@ def generer_planning():
             df_existant[col] = ""
     df_nouveau = df_nouveau.reindex(columns=colonnes_planning)
     df_existant = df_existant.reindex(columns=colonnes_planning)
+    df_existant["programme"] = df_existant["programme"].apply(lambda x: str(x).zfill(3))
+    df_nouveau["programme"] = df_nouveau["programme"].apply(lambda x: str(x).zfill(3))
+
 
     #test
     print(">>> EXISTANT AVANT FUSION <<<")
@@ -167,7 +169,6 @@ def generer_planning():
     print(">>> MERGE APRÈS FUSION & DEDUP <<<")
     print(df_merge[["client", "programme", "saison", "chat_id", "date", "heure", "type", "envoye"]])
 
-
     # --- Pré-tri pour affichage ---
     df_merge["date"] = pd.to_datetime(df_merge["date"], errors="coerce", format="%Y-%m-%d")
 
@@ -175,7 +176,7 @@ def generer_planning():
     df_merge = df_merge.dropna(subset=["date", "heure"])
     df_merge = df_merge[(df_merge["date"] != "NaT") & (df_merge["heure"] != "NaT")]
 
-    # suppeession des doublons
+    # supression des doublons
     df_merge["datetime"] = pd.to_datetime(
         df_merge["date"].dt.strftime("%Y-%m-%d") + " " + df_merge["heure"],
         format="%Y-%m-%d %H:%M:%S", errors="coerce"
