@@ -173,7 +173,7 @@ def generer_planning():
             phrase = ligne.iloc[0].get("Phrase", "")
             format_msg = ligne.iloc[0].get("Format", "texte").strip().lower()
             url_msg = ligne.iloc[0].get("Url", "")
-            messages_remplis.append(f"Jour {jour} : {row['type']} : {phrase}")
+            messages_remplis.append(f"Saison {saison} - Jour {jour} : \n{row['type']} : {phrase}")
             formats_remplis.append(format_msg)
             urls_remplis.append(url_msg)
         else:
