@@ -3,8 +3,8 @@ name: Bot Telegram Cron
 
 on:
   schedule:
-    - cron: '1 * * * *'    # Toutes les heures à la minute 11 (adapte si besoin)
-  workflow_dispatch:         # Permet de lancer à la main depuis GitHub
+    - cron: '1 * * * *'    # Toutes les heures à la minute 1
+  workflow_dispatch:    
 
 jobs:
   run-bot:
@@ -17,7 +17,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'   # Ou la version que tu veux
+          python-version: '3.11'   
 
       - name: Install dependencies
         run: |
