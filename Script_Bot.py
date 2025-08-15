@@ -189,16 +189,30 @@ def lancer_bot():
         
         try:
             if fmt == "image" and url:
-                success, err = send_telegram_photo(chat_id, url, caption=raw_text)
+                # Vérifier que l'URL pointe bien vers une image
+                ok_image = False
+                try:
+                    h = requests.head(url, allow_redirects=True, timeout=7)
+                    ctype = h.headers.get("content-type", "")
+                    ok_image = ctype.startswith("image/")
+                except Exception:
+                    ok_image = False
+        
+                if ok_image:
+                    success, err = send_telegram_photo(chat_id, url, caption=raw_text)
+                else:
+                    # fallback : envoyer en message texte avec le lien
+                    text_to_send = f"{raw_text}\n{url}" if url else raw_text
+                    success, err = send_telegram_message(chat_id, text_to_send)
             else:
-                text = raw_text
-                # si tu veux garder l'ajout du lien quand ce n'est pas une image :
+                text_to_send = raw_text
                 if url:
-                    text = f"{text}\n{url}"
-                success, err = send_telegram_message(chat_id, text)
+                    text_to_send = f"{text_to_send}\n{url}"
+                success, err = send_telegram_message(chat_id, text_to_send)
         except Exception as e:
             success = False
             err = f"exception:{e}"
+
 
 
         if success:
