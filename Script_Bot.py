@@ -125,7 +125,7 @@ def send_telegram_photo(chat_id, photo, caption=None, is_file=False):
     """
     photo: soit une URL (str), soit un fichier binaire (file-like) si is_file=True
     """
-    api = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+    api = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     data = {"chat_id": chat_id}
     if caption:
         data["caption"] = caption
