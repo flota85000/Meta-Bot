@@ -7,10 +7,86 @@ import pandas as pd
 import pytz
 import requests
 import config
+import re
+import tempfile
 
 # ======================
 # Helpers / Parameters
 # ======================
+DRIVE_FILE_RE = re.compile(
+    r"(?:https?://)?(?:drive\.google\.com)/(?:file/d/([a-zA-Z0-9_-]+)|open\?id=([a-zA-Z0-9_-]+))"
+)
+
+def extract_drive_file_id(url: str) -> str:
+    """
+    Extrait l'ID Google Drive à partir de liens de type:
+    - https://drive.google.com/file/d/<FILE_ID>/view?...
+    - https://drive.google.com/open?id=<FILE_ID>
+    Retourne "" si non reconnu.
+    """
+    if not url:
+        return ""
+    m = DRIVE_FILE_RE.search(url)
+    if not m:
+        return ""
+    return m.group(1) or m.group(2) or ""
+
+def download_drive_file_to_temp(file_id: str) -> str:
+    """
+    Télécharge un fichier Google Drive public via 'uc?export=download&id=...' dans un fichier temporaire.
+    Gère le token de confirmation pour les redirections/scan antivirus de Drive.
+    Retourne le chemin local du fichier temporaire (à supprimer ensuite).
+    Lève une Exception en cas d'échec.
+    """
+    if not file_id:
+        raise ValueError("Missing Google Drive file id")
+
+    session = requests.Session()
+    base = "https://drive.google.com/uc?export=download"
+    params = {"id": file_id}
+    r = session.get(base, params=params, stream=True, allow_redirects=True, timeout=15)
+
+    # Si Drive renvoie une page HTML de confirmation, récupérer le token 'confirm'
+    def _find_confirm_token(content_text: str):
+        # cherche un paramètre confirm=XYZ dans la page
+        m = re.search(r"confirm=([0-9A-Za-z_]+)", content_text)
+        return m.group(1) if m else None
+
+    if ("text/html" in r.headers.get("content-type", "")) and r.text:
+        token = _find_confirm_token(r.text)
+        if token:
+            params["confirm"] = token
+            r = session.get(base, params=params, stream=True, allow_redirects=True, timeout=15)
+
+    r.raise_for_status()
+
+    # Déterminer une extension selon le content-type si possible
+    ctype = r.headers.get("content-type", "")
+    suffix = ""
+    if "jpeg" in ctype:
+        suffix = ".jpg"
+    elif "png" in ctype:
+        suffix = ".png"
+    elif "webp" in ctype:
+        suffix = ".webp"
+    elif "gif" in ctype:
+        suffix = ".gif"
+    else:
+        # inconnu : tente .bin (Telegram s’en fiche si c’est bien une image)
+        suffix = ".bin"
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    try:
+        for chunk in r.iter_content(1024 * 64):
+            if chunk:
+                tmp.write(chunk)
+        tmp.flush()
+        return tmp.name
+    except Exception:
+        tmp.close()
+        os.unlink(tmp.name)
+        raise
+
 
 def _tz():
     try:
@@ -45,12 +121,29 @@ def send_telegram_message(chat_id, text):
     payload = {"chat_id": chat_id, "text": text, "disable_web_page_preview": False}
     return _post_with_retry(url, payload)
 
-def send_telegram_photo(chat_id, photo_url, caption=None):
-    url = f"{API_BASE}/sendPhoto"
-    payload = {"chat_id": chat_id, "photo": photo_url}
+def send_telegram_photo(chat_id, photo, caption=None, is_file=False):
+    """
+    photo: soit une URL (str), soit un fichier binaire (file-like) si is_file=True
+    """
+    api = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+    data = {"chat_id": chat_id}
     if caption:
-        payload["caption"] = caption
-    return _post_with_retry(url, payload)
+        data["caption"] = caption
+
+    try:
+        if is_file:
+            files = {"photo": photo}  # file-like object
+            r = requests.post(api, data=data, files=files, timeout=20)
+        else:
+            data["photo"] = photo     # URL
+            r = requests.post(api, data=data, timeout=20)
+
+        if r.status_code == 200:
+            return True, ""
+        return False, f"{r.status_code}:{r.text}"
+    except Exception as e:
+        return False, f"exception:{e}"
+
 
 def _post_with_retry(url, payload):
     # Retries for 429 / certain 5xx
@@ -189,21 +282,41 @@ def lancer_bot():
         
         try:
             if fmt == "image" and url:
-                # Vérifier que l'URL pointe bien vers une image
-                ok_image = False
-                try:
-                    h = requests.head(url, allow_redirects=True, timeout=7)
-                    ctype = h.headers.get("content-type", "")
-                    ok_image = ctype.startswith("image/")
-                except Exception:
-                    ok_image = False
+                file_id = extract_drive_file_id(url)
         
-                if ok_image:
-                    success, err = send_telegram_photo(chat_id, url, caption=raw_text)
+                if file_id:
+                    # Cas Google Drive: on télécharge puis on upload à Telegram
+                    local_path = None
+                    try:
+                        local_path = download_drive_file_to_temp(file_id)
+                        # send_telegram_photo doit accepter un InputFile; si tu as déjà une fonction utilitaire
+                        # 'send_telegram_photo' qui accepte 'files', utilise-la. Sinon en brut:
+                        with open(local_path, "rb") as f:
+                            # Ex: requests.post(f"https://api.telegram.org/bot{TOKEN}/sendPhoto", data={...}, files={"photo": f})
+                            success, err = send_telegram_photo(chat_id, f, caption=raw_text, is_file=True)
+                    finally:
+                        if local_path and os.path.exists(local_path):
+                            try:
+                                os.unlink(local_path)
+                            except Exception:
+                                pass
+        
                 else:
-                    # fallback : envoyer en message texte avec le lien
-                    text_to_send = f"{raw_text}\n{url}" if url else raw_text
-                    success, err = send_telegram_message(chat_id, text_to_send)
+                    # Pas un lien Drive -> tentative "URL directe"
+                    ok_image = False
+                    try:
+                        h = requests.head(url, allow_redirects=True, timeout=7)
+                        ctype = h.headers.get("content-type", "")
+                        ok_image = ctype.startswith("image/")
+                    except Exception:
+                        ok_image = False
+        
+                    if ok_image:
+                        success, err = send_telegram_photo(chat_id, url, caption=raw_text)
+                    else:
+                        # fallback : on envoie en texte + lien
+                        text_to_send = f"{raw_text}\n{url}" if url else raw_text
+                        success, err = send_telegram_message(chat_id, text_to_send)
             else:
                 text_to_send = raw_text
                 if url:
