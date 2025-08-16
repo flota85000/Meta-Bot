@@ -332,7 +332,7 @@ def generer_planning():
     # 2) Cache du nombre de jours par (programme, saison)
     nb_jours_cache = {}
 
-    def _nb_jours_for(prog, saison):
+    def _nb_jours_for(prog: str, saison: int):
         key = (prog, int(saison))
         if key in nb_jours_cache:
             return nb_jours_cache[key]
@@ -353,34 +353,39 @@ def generer_planning():
     # 3) Construire les updates pour chaque client sans "Date de Fin"
     updates = []
     for i, (_, r) in enumerate(dfc.iterrows(), start=2):  # lignes sheet = 2..N
-        cur_fin = str(r.get("Date de Fin", "")).strip()
-        if cur_fin:
+        current_fin = str(r.get("Date de Fin", "")).strip()
+        if current_fin:
             continue
 
-        prog = str(r.get("Programme", "")).strip().zfill(3)
+        prog = str(r.get("Programme", "")).strip()
+        if not prog:
+            continue
+        prog = prog.zfill(3)
+
         saison = r.get("Saison")
-        start = r.get("Date de Démarrage")
-        jours = r.get("Jours de Diffusion", set())
-
-        if not prog or pd.isna(saison) or pd.isna(start):
+        if pd.isna(saison):
             continue
+        saison = int(pd.to_numeric(saison, errors="coerce") or 1)
 
-        # start -> date
+        start = r.get("Date de Démarrage")
+        if pd.isna(start):
+            continue
         start_dt = pd.to_datetime(start, errors="coerce")
         if pd.isna(start_dt):
             continue
 
-        nb = _nb_jours_for(prog, int(saison))
+        nb = _nb_jours_for(prog, saison)
         if not nb or nb <= 0:
             continue
 
-        # normaliser l'ensemble des jours autorisés
+        # Jours de diffusion : déjà normalisés plus haut (set de libellés FR)
+        jours = r.get("Jours de Diffusion", set())
         if isinstance(jours, (list, tuple, set)):
             jours_set = {str(x).strip().lower() for x in jours}
         else:
             jours_set = {p.strip().lower() for p in str(jours).replace(";", ",").split(",") if p.strip()}
 
-        # simuler les jours de diffusion depuis la date de démarrage
+        # 4) Simuler les jours de diffusion pour trouver la dernière date
         count = 0
         cur = start_dt.date()
         last = cur
@@ -392,7 +397,7 @@ def generer_planning():
 
         updates.append((i, last.strftime("%Y-%m-%d")))
 
-    # 4) Batch update dans la feuille Clients
+    # 5) Batch update
     if updates:
         data_body = {
             "valueInputOption": "RAW",
@@ -408,7 +413,6 @@ def generer_planning():
         print(f"📝 Dates de fin mises à jour pour {len(updates)} client(s).")
     else:
         print("📝 Aucune date de fin à compléter.")
-
 
 if __name__ == "__main__":
     generer_planning()
