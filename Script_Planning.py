@@ -315,80 +315,100 @@ def generer_planning():
     ws_planning.update([dfm.columns.tolist()] + dfm.values.tolist())
     print(f"[DEBUG] Total par date (après fusion): {dfm['date'].value_counts().to_dict()}\n📅 Mise à jour planning à {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
-    # === Update Date de Fin in Clients (only when empty) ===
-    # Build map: (prog,saison) -> nb_jours (max Jour)
-    nb_jours_cache = {}
-    def get_nb_jours(prog, saison):
-        key = (prog, saison)
-        if key in nb_jours_cache:
-            return nb_jours_cache[key]
-        dfp = programmes_cache.get(prog)
-        if dfp is None:
-            try:
-                ws_prog = doc_programmes.worksheet(prog)
-                dfp = pd.DataFrame(ws_prog.get_all_records())
-                if dfp.empty:
-                    nb_jours_cache[key] = None; return None
-                dfp["Saison"] = pd.to_numeric(dfp["Saison"], errors="coerce").fillna(1).astype(int)
-                dfp["Jour"] = pd.to_numeric(dfp["Jour"], errors="coerce").fillna(1).astype(int)
-            except Exception:
-                nb_jours_cache[key] = None; return None
-        sel = dfp[dfp["Saison"]==saison]
-        if sel.empty:
-            nb_jours_cache[key] = None; return None
-        nb = int(sel["Jour"].max())
-        nb_jours_cache[key] = nb
-        return nb
+    # === Mise à jour "Date de Fin" dans la feuille Clients (si vide) ===
 
-    # Determine column index for "Date de Fin"
+    # 1) S'assurer que la colonne existe
     header = ws_clients.row_values(1)
     if "Date de Fin" not in header:
-        # add column at end
-        header.append("Date de Fin")
         all_vals = ws_clients.get_all_values()
+        header.append("Date de Fin")
         if all_vals:
             ws_clients.update("A1", [header] + all_vals[1:])
         else:
             ws_clients.update("A1", [header])
         header = ws_clients.row_values(1)
-    date_fin_col_idx = header.index("Date de Fin") + 1  # 1-based
+    date_fin_col_idx = header.index("Date de Fin") + 1  # index 1-based
 
-    # Build updates for rows needing a Date de Fin
+    # 2) Cache du nombre de jours par (programme, saison)
+    nb_jours_cache = {}
+
+    def _nb_jours_for(prog, saison):
+        key = (prog, int(saison))
+        if key in nb_jours_cache:
+            return nb_jours_cache[key]
+        dfp = get_prog_df(prog)  # utilise le cache_prog défini plus haut
+        if dfp is None or dfp.empty:
+            nb_jours_cache[key] = None
+            return None
+        sel = dfp[dfp["Saison"] == int(saison)]
+        if sel.empty:
+            nb_jours_cache[key] = None
+            return None
+        m = pd.to_numeric(sel["Jour"], errors="coerce")
+        m = m[m.notna()]
+        nb = int(m.max()) if not m.empty else None
+        nb_jours_cache[key] = nb
+        return nb
+
+    # 3) Construire les updates pour chaque client sans "Date de Fin"
     updates = []
-    for i, (_, r) in enumerate(df_clients.iterrows(), start=2):  # sheet rows start at 2
-        current_fin = str(r.get("Date de Fin","")).strip()
-        if current_fin:
+    for i, (_, r) in enumerate(dfc.iterrows(), start=2):  # lignes sheet = 2..N
+        cur_fin = str(r.get("Date de Fin", "")).strip()
+        if cur_fin:
             continue
-        prog = str(r["Programme"]).zfill(3)
-        saison = int(r["Saison"])
-        start = r["Date de Démarrage"]
-        jours_aut = r["Jours de Diffusion"]
-        if pd.isna(start):
+
+        prog = str(r.get("Programme", "")).strip().zfill(3)
+        saison = r.get("Saison")
+        start = r.get("Date de Démarrage")
+        jours = r.get("Jours de Diffusion", set())
+
+        if not prog or pd.isna(saison) or pd.isna(start):
             continue
-        nb_jours = get_nb_jours(prog, saison)
-        if not nb_jours or nb_jours <= 0:
+
+        # start -> date
+        start_dt = pd.to_datetime(start, errors="coerce")
+        if pd.isna(start_dt):
             continue
-        # simulate days
+
+        nb = _nb_jours_for(prog, int(saison))
+        if not nb or nb <= 0:
+            continue
+
+        # normaliser l'ensemble des jours autorisés
+        if isinstance(jours, (list, tuple, set)):
+            jours_set = {str(x).strip().lower() for x in jours}
+        else:
+            jours_set = {p.strip().lower() for p in str(jours).replace(";", ",").split(",") if p.strip()}
+
+        # simuler les jours de diffusion depuis la date de démarrage
         count = 0
-        cur = start.date()
+        cur = start_dt.date()
         last = cur
-        while count < nb_jours:
-            if (len(jours_aut)==0) or (_weekday_fr(cur) in jours_aut):
+        while count < nb:
+            if (not jours_set) or (_weekday_fr(cur) in jours_set):
                 count += 1
                 last = cur
             cur += timedelta(days=1)
+
         updates.append((i, last.strftime("%Y-%m-%d")))
 
+    # 4) Batch update dans la feuille Clients
     if updates:
         data_body = {
             "valueInputOption": "RAW",
-            "data": [{"range": f"{config.FEUILLE_CLIENTS}!{gspread.utils.rowcol_to_a1(r, date_fin_col_idx)}",
-                      "values": [[val]]} for (r, val) in updates]
+            "data": [
+                {
+                    "range": f"{config.FEUILLE_CLIENTS}!{gspread.utils.rowcol_to_a1(r, date_fin_col_idx)}",
+                    "values": [[val]],
+                }
+                for (r, val) in updates
+            ],
         }
         ws_clients.spreadsheet.values_batch_update(data_body)
         print(f"📝 Dates de fin mises à jour pour {len(updates)} client(s).")
     else:
         print("📝 Aucune date de fin à compléter.")
-        
+
+
 if __name__ == "__main__":
     generer_planning()
