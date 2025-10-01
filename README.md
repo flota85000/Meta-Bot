@@ -3,7 +3,7 @@
 
 ## 1. Description du projet
 
-**MetaBot** est un assistant pour automatisé qui gère la planification et l’envoi de messages dans différents canaux Telegram, à partir d’un programme défini dans Google Sheets.  
+**MetaBot** est un assistants pour automatisé qui gère la planification et l’envoi de messages dans différents canaux Telegram, à partir d’un programme défini dans Google Sheets.  
 **Hébergement :** GitHub Actions (cron), déploiement facile sur d’autres plateformes cloud.
 
 ---
