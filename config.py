@@ -11,6 +11,7 @@ FICHIER_PROGRAMMES = "Méta-université_Programmes"
 # Google Sheet – Feuilles internes
 FEUILLE_CLIENTS = "Clients"
 FEUILLE_PLANNING = "Planning"
+FEUILLE_REPONSES_SONDAGES = "Réponses Sondages"
 
 # === API Telegram ===
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', 'VOTRE_TOKEN_PAR_DEFAUT')
@@ -24,6 +25,10 @@ GSHEETS_RETRY_BASE = 1.5     # exponentiel (1.5^n) + jitter
 
 FUSEAU_HORAIRE = "Europe/Paris"
 LANGUE = "fr_FR.UTF-8"
+
+# === 📊 Paramètres des sondages ===
+SONDAGE_ANONYME = True       # Les sondages sont-ils anonymes ?
+SONDAGE_MULTI_REPONSES = False  # Autoriser plusieurs réponses ?
 
 # === 📓 Logger / erreurs
 ACTIVER_LOG = True

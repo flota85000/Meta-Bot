@@ -9,6 +9,7 @@ import requests
 import config
 import re
 import tempfile
+import hashlib
 
 # ======================
 # Helpers / Parameters
@@ -72,7 +73,7 @@ def download_drive_file_to_temp(file_id: str) -> str:
     elif "gif" in ctype:
         suffix = ".gif"
     else:
-        # inconnu : tente .bin (Telegram s’en fiche si c’est bien une image)
+        # inconnu : tente .bin (Telegram s'en fiche si c'est bien une image)
         suffix = ".bin"
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
@@ -145,6 +146,83 @@ def send_telegram_photo(chat_id, photo, caption=None, is_file=False):
         return False, f"exception:{e}"
 
 
+def send_telegram_poll(chat_id, question, options, is_anonymous=True, allows_multiple_answers=False):
+    """
+    Envoie un sondage Telegram.
+    
+    Args:
+        chat_id: ID du canal/chat
+        question: La question du sondage
+        options: Liste des options de réponse (max 10)
+        is_anonymous: Si True, les votes sont anonymes
+        allows_multiple_answers: Si True, plusieurs réponses possibles
+    
+    Returns:
+        (success: bool, error_or_poll_id: str)
+    """
+    url = f"{API_BASE}/sendPoll"
+    
+    # Telegram limite à 10 options maximum
+    if len(options) > 10:
+        return False, "max_10_options"
+    
+    # Telegram exige au moins 2 options
+    if len(options) < 2:
+        return False, "min_2_options_required"
+    
+    payload = {
+        "chat_id": chat_id,
+        "question": question,
+        "options": options,  # Telegram accepte un JSON array
+        "is_anonymous": is_anonymous,
+        "allows_multiple_answers": allows_multiple_answers,
+        "type": "regular"  # "regular" ou "quiz"
+    }
+    
+    try:
+        r = requests.post(url, json=payload, timeout=TELEGRAM_TIMEOUT)
+        
+        if r.status_code == 200:
+            try:
+                data = r.json()
+                if data.get("ok"):
+                    poll_id = data.get("result", {}).get("poll", {}).get("id", "")
+                    return True, poll_id
+            except Exception:
+                pass
+            return True, "ok"
+        
+        return False, f"{r.status_code}:{r.text}"
+        
+    except Exception as e:
+        return False, f"exception:{e}"
+
+
+def parse_poll_content(message_text):
+    """
+    Parse le contenu du message pour extraire la question et les options du sondage.
+    Format attendu :
+    Ligne 1: Question du sondage
+    Ligne 2+: Options (une par ligne)
+    
+    Returns:
+        (question: str, options: list[str]) ou (None, None) si invalide
+    """
+    lines = [line.strip() for line in message_text.strip().split("\n") if line.strip()]
+    
+    if len(lines) < 3:  # Au minimum: question + 2 options
+        return None, None
+    
+    question = lines[0]
+    options = lines[1:]
+    
+    # Telegram limite à 10 options
+    if len(options) > 10:
+        options = options[:10]
+    
+    return question, options
+
+
 def _post_with_retry(url, payload):
     # Retries for 429 / certain 5xx
     for attempt in range(1, TELEGRAM_MAX_RETRIES + 1):
@@ -182,6 +260,90 @@ def _post_with_retry(url, payload):
 
     return False, "max_retries_exceeded"
 
+
+def process_poll_updates_and_save(client):
+    """
+    Récupère les mises à jour des sondages via getUpdates et les enregistre dans Google Sheets.
+    Cette fonction doit être appelée régulièrement pour récupérer les réponses aux sondages.
+    """
+    tz = _tz()
+    
+    try:
+        # Récupérer les updates
+        url = f"{API_BASE}/getUpdates"
+        params = {"timeout": 5, "allowed_updates": ["poll_answer"]}
+        
+        r = requests.get(url, params=params, timeout=10)
+        if r.status_code != 200:
+            print(f"⚠️ Erreur getUpdates: {r.status_code}")
+            return
+        
+        data = r.json()
+        if not data.get("ok"):
+            return
+        
+        results = data.get("result", [])
+        if not results:
+            return
+        
+        # Ouvrir la feuille de réponses
+        ws_reponses = client.open(config.FICHIER_PLANNING).worksheet(config.FEUILLE_REPONSES_SONDAGES)
+        
+        # S'assurer que les colonnes existent
+        header = ws_reponses.row_values(1)
+        if not header or header != ["User ID", "Prénom", "Nom", "Username", "Date et Heure", "Question", "Réponse(s)"]:
+            ws_reponses.update("A1", [["User ID", "Prénom", "Nom", "Username", "Date et Heure", "Question", "Réponse(s)"]])
+        
+        nouvelles_reponses = []
+        
+        for update in results:
+            if "poll_answer" not in update:
+                continue
+            
+            poll_answer = update["poll_answer"]
+            poll_id = poll_answer.get("poll_id")
+            user = poll_answer.get("user", {})
+            option_ids = poll_answer.get("option_ids", [])
+            
+            user_id = user.get("id", "")
+            first_name = user.get("first_name", "")
+            last_name = user.get("last_name", "")
+            username = user.get("username", "")
+            
+            # Pour récupérer la question et les options, il faudrait avoir stocké
+            # les infos du sondage. Ici, on va juste mettre l'ID du sondage
+            # et les indices des réponses choisies.
+            # NOTE: Pour améliorer, vous pourriez stocker les métadonnées des sondages
+            # dans une autre feuille au moment de l'envoi.
+            
+            timestamp = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Formater les réponses (indices)
+            reponses_str = ", ".join([f"Option {i}" for i in option_ids])
+            
+            nouvelles_reponses.append([
+                str(user_id),
+                first_name,
+                last_name,
+                username,
+                timestamp,
+                f"Poll ID: {poll_id}",  # On ne peut pas récupérer la question facilement
+                reponses_str
+            ])
+        
+        if nouvelles_reponses:
+            ws_reponses.append_rows(nouvelles_reponses)
+            print(f"📊 {len(nouvelles_reponses)} réponse(s) de sondage enregistrée(s)")
+        
+        # Confirmer les updates reçus (pour ne pas les recevoir à nouveau)
+        if results:
+            last_update_id = max(u.get("update_id", 0) for u in results)
+            requests.get(f"{API_BASE}/getUpdates", params={"offset": last_update_id + 1}, timeout=5)
+    
+    except Exception as e:
+        print(f"⚠️ Erreur lors du traitement des réponses de sondage: {e}")
+
+
 # ======================
 # Main
 # ======================
@@ -196,6 +358,22 @@ def lancer_bot():
     ]
     creds = Credentials.from_service_account_file(config.CHEMIN_CLE_JSON, scopes=scope)
     client = gspread.authorize(creds)
+
+    # Vérifier/créer la feuille de réponses aux sondages
+    try:
+        spreadsheet = client.open(config.FICHIER_PLANNING)
+        try:
+            spreadsheet.worksheet(config.FEUILLE_REPONSES_SONDAGES)
+        except gspread.WorksheetNotFound:
+            # Créer la feuille si elle n'existe pas
+            ws_new = spreadsheet.add_worksheet(title=config.FEUILLE_REPONSES_SONDAGES, rows=1000, cols=7)
+            ws_new.update("A1", [["User ID", "Prénom", "Nom", "Username", "Date et Heure", "Question", "Réponse(s)"]])
+            print(f"✅ Feuille '{config.FEUILLE_REPONSES_SONDAGES}' créée")
+    except Exception as e:
+        print(f"⚠️ Erreur lors de la vérification de la feuille de réponses: {e}")
+
+    # Traiter les réponses aux sondages précédents
+    process_poll_updates_and_save(client)
 
     # Open planning
     ws_planning = client.open(config.FICHIER_PLANNING).worksheet(config.FEUILLE_PLANNING)
@@ -248,7 +426,7 @@ def lancer_bot():
         (df["envoye"].str.lower() == "non")
         & df["_dt"].notna()
         & (df["_dt"] <= now_local)
-        & has_msg             # <<--- AJOUT
+        & has_msg
     )
     
     if SEND_WINDOW_MINUTES is not None:
@@ -271,7 +449,7 @@ def lancer_bot():
         ws_row_num = int(idx) + 2
 
         chat_id = row["chat_id"]
-        raw_text = str(row["message"]).strip()  # on teste le "message" du planning, pas le texte après append url
+        raw_text = str(row["message"]).strip()
         fmt = str(row["format"]).strip().lower()
         url = str(row["url"]).strip()
         
@@ -281,7 +459,27 @@ def lancer_bot():
             continue
         
         try:
-            if fmt == "image" and url:
+            # === GESTION DES SONDAGES ===
+            if fmt == "sondage":
+                question, options = parse_poll_content(raw_text)
+                
+                if question and options:
+                    is_anonymous = getattr(config, "SONDAGE_ANONYME", True)
+                    allows_multiple = getattr(config, "SONDAGE_MULTI_REPONSES", False)
+                    
+                    success, err = send_telegram_poll(
+                        chat_id, 
+                        question, 
+                        options,
+                        is_anonymous=is_anonymous,
+                        allows_multiple_answers=allows_multiple
+                    )
+                else:
+                    success = False
+                    err = "format_sondage_invalide"
+            
+            # === GESTION DES IMAGES ===
+            elif fmt == "image" and url:
                 file_id = extract_drive_file_id(url)
         
                 if file_id:
@@ -289,10 +487,7 @@ def lancer_bot():
                     local_path = None
                     try:
                         local_path = download_drive_file_to_temp(file_id)
-                        # send_telegram_photo doit accepter un InputFile; si tu as déjà une fonction utilitaire
-                        # 'send_telegram_photo' qui accepte 'files', utilise-la. Sinon en brut:
                         with open(local_path, "rb") as f:
-                            # Ex: requests.post(f"https://api.telegram.org/bot{TOKEN}/sendPhoto", data={...}, files={"photo": f})
                             success, err = send_telegram_photo(chat_id, f, caption=raw_text, is_file=True)
                     finally:
                         if local_path and os.path.exists(local_path):
@@ -317,20 +512,22 @@ def lancer_bot():
                         # fallback : on envoie en texte + lien
                         text_to_send = f"{raw_text}\n{url}" if url else raw_text
                         success, err = send_telegram_message(chat_id, text_to_send)
+            
+            # === GESTION DU TEXTE ===
             else:
                 text_to_send = raw_text
                 if url:
                     text_to_send = f"{text_to_send}\n{url}"
                 success, err = send_telegram_message(chat_id, text_to_send)
+                
         except Exception as e:
             success = False
             err = f"exception:{e}"
 
-
-
         if success:
             updates.append((ws_row_num, "oui"))
-            print(f"✅ Envoyé (ligne {ws_row_num}) -> chat_id={chat_id}")
+            type_msg = "sondage" if fmt == "sondage" else ("image" if fmt == "image" else "texte")
+            print(f"✅ {type_msg.capitalize()} envoyé (ligne {ws_row_num}) -> chat_id={chat_id}")
         else:
             print(f"⚠️ Echec envoi (ligne {ws_row_num}) -> chat_id={chat_id} ; {err}")
 
@@ -353,3 +550,5 @@ def lancer_bot():
 
 if __name__ == "__main__":
     lancer_bot()
+
+
