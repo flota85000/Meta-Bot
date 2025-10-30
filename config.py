@@ -27,7 +27,7 @@ FUSEAU_HORAIRE = "Europe/Paris"
 LANGUE = "fr_FR.UTF-8"
 
 # === 📊 Paramètres des sondages ===
-SONDAGE_ANONYME = True       # Les sondages sont-ils anonymes ?
+SONDAGE_ANONYME = False       # Les sondages sont-ils anonymes ?
 SONDAGE_MULTI_REPONSES = False  # Autoriser plusieurs réponses ?
 
 # === 📓 Logger / erreurs
