@@ -200,26 +200,31 @@ def send_telegram_poll(chat_id, question, options, is_anonymous=True, allows_mul
 
 def parse_poll_content(message_text):
     """
-    Parse le contenu du message pour extraire la question et les options du sondage.
+    Parse le contenu du message pour extraire la question (avec la date intégrée) et les options.
     Format attendu :
-    Ligne 1: Question du sondage
-    Ligne 2+: Options (une par ligne)
-    
+    Ligne 1: Date
+    Ligne 2: Question
+    Ligne 3+: Options (une par ligne)
+
     Returns:
         (question: str, options: list[str]) ou (None, None) si invalide
     """
     lines = [line.strip() for line in message_text.strip().split("\n") if line.strip()]
-    
-    if len(lines) < 3:  # Au minimum: question + 2 options
+
+    if len(lines) < 4:  # Au minimum: date + question + 2 options
         return None, None
-    
-    question = lines[0]
-    options = lines[1:]
-    
+
+    date = lines[0]
+    raw_question = lines[1]
+    options = lines[2:]
+
+    # Habillage : on intègre la date dans la question
+    question = f"📅 {date} — {raw_question}"
+
     # Telegram limite à 10 options
     if len(options) > 10:
         options = options[:10]
-    
+
     return question, options
 
 
