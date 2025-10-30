@@ -27,8 +27,8 @@ FUSEAU_HORAIRE = "Europe/Paris"
 LANGUE = "fr_FR.UTF-8"
 
 # === 📊 Paramètres des sondages ===
-SONDAGE_ANONYME = True       # Les sondages sont-ils anonymes ?
-SONDAGE_MULTI_REPONSES = False  # Autoriser plusieurs réponses ?
+SONDAGE_ANONYME = True       # Les sondages sont forcément anonymes sur les channels (à supprimer ?)
+SONDAGE_MULTI_REPONSES = True  # Autoriser plusieurs réponses ?
 
 # === 📓 Logger / erreurs
 ACTIVER_LOG = True
