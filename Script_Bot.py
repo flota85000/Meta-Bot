@@ -219,7 +219,7 @@ def parse_poll_content(message_text):
     options = lines[2:]
 
     # Habillage : on intègre la date dans la question
-    question = f"📅 {date} — {raw_question}"
+    question = f"📅 {date}\n\n{raw_question}"
 
     # Telegram limite à 10 options
     if len(options) > 10:
