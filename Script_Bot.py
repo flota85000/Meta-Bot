@@ -274,9 +274,9 @@ def process_poll_updates_and_save(client):
     tz = _tz()
     
     try:
-        # Récupérer les updates
+        # Récupérer les updates (poll + poll_answer)
         url = f"{API_BASE}/getUpdates"
-        params = {"timeout": 5, "allowed_updates": ["poll_answer"]}
+        params = {"timeout": 5, "allowed_updates": ["poll", "poll_answer"]}
         
         r = requests.get(url, params=params, timeout=10)
         if r.status_code != 200:
@@ -290,6 +290,16 @@ def process_poll_updates_and_save(client):
         results = data.get("result", [])
         if not results:
             return
+        
+        # Construire un mapping poll_id -> (question, options)
+        poll_data = {}
+        for update in results:
+            if "poll" in update:
+                poll = update["poll"]
+                poll_id = poll.get("id")
+                question = poll.get("question", "")
+                options = [opt.get("text", "") for opt in poll.get("options", [])]
+                poll_data[poll_id] = (question, options)
         
         # Ouvrir la feuille de réponses
         ws_reponses = client.open(config.FICHIER_PLANNING).worksheet(config.FEUILLE_REPONSES_SONDAGES)
@@ -315,16 +325,20 @@ def process_poll_updates_and_save(client):
             last_name = user.get("last_name", "")
             username = user.get("username", "")
             
-            # Pour récupérer la question et les options, il faudrait avoir stocké
-            # les infos du sondage. Ici, on va juste mettre l'ID du sondage
-            # et les indices des réponses choisies.
-            # NOTE: Pour améliorer, vous pourriez stocker les métadonnées des sondages
-            # dans une autre feuille au moment de l'envoi.
-            
             timestamp = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
             
-            # Formater les réponses (indices)
-            reponses_str = ", ".join([f"Option {i}" for i in option_ids])
+            # Récupérer question et options depuis le mapping
+            question, options = poll_data.get(poll_id, ("Question inconnue", []))
+            
+            # Convertir les indices en texte des options
+            reponses_texte = []
+            for idx in option_ids:
+                if idx < len(options):
+                    reponses_texte.append(options[idx])
+                else:
+                    reponses_texte.append(f"Option {idx}")
+            
+            reponses_str = ", ".join(reponses_texte)
             
             nouvelles_reponses.append([
                 str(user_id),
@@ -332,7 +346,7 @@ def process_poll_updates_and_save(client):
                 last_name,
                 username,
                 timestamp,
-                f"Poll ID: {poll_id}",  # On ne peut pas récupérer la question facilement
+                question,
                 reponses_str
             ])
         
@@ -555,5 +569,3 @@ def lancer_bot():
 
 if __name__ == "__main__":
     lancer_bot()
-
-
