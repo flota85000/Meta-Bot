@@ -228,7 +228,7 @@ def process_poll_updates_and_save(client, planning_data):
     
     try:
         url = f"{API_BASE}/getUpdates"
-        params = {"timeout": 5, "allowed_updates": ["poll", "poll_answer"]}
+        params = {"timeout": 5, "allowed_updates": ["poll", "poll_answer", "message"]}
         
         r = requests.get(url, params=params, timeout=10)
         if r.status_code != 200:
