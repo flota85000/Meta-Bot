@@ -41,7 +41,6 @@ def _norm_hms(x):
         return ""
 
 def _norm_date(s):
-    # Accept a variety of inputs; output YYYY-MM-DD
     dt = pd.to_datetime(s, errors="coerce", format="%Y-%m-%d")
     return "" if pd.isna(dt) else dt.strftime("%Y-%m-%d")
 
@@ -70,7 +69,6 @@ def _normalize_key_columns(df):
     df["chat_id"]   = df["chat_id"].apply(_norm_chat)
     df["date"]      = df["date"].apply(_norm_date)
     df["heure"]     = df["heure"].apply(_norm_hms)
-    # type left empty at generation; filled later
 
 # ========= Main =========
 
@@ -91,25 +89,12 @@ def generer_planning():
 
     # Read Clients
     dfc = pd.DataFrame(ws_clients.get_all_records())
-    required = ["Client","Thème","Canal ID","Programme","Saison","Date de Démarrage",
+    required = ["Client","Societe","Email","Thème","Canal ID","Programme","Saison","Date de Démarrage",
                 "Jours de Diffusion","Heure envoi 1","Heure envoi 2","Heure envoi 3"]
     for c in required:
         if c not in dfc.columns:
             dfc[c] = ""
-    # keep backwards compatibility with old hour columns if new are empty
-    fallback = {1:"Heure Aphorisme", 2:"Heure Conseil", 3:"Heure Réflexion"}
-    for k,col in fallback.items():
-        if f"Heure envoi {k}" not in dfc.columns and col in dfc.columns:
-            dfc[f"Heure envoi {k}"] = dfc[col]
-        elif dfc[f"Heure envoi {k}"].replace("", pd.NA).isna().all() and col in dfc.columns:
-            dfc[f"Heure envoi {k}"] = dfc[col]
-
-    # Types per slot (optional in Clients)
-    for k in (1,2,3):
-        cname = f"Type envoi {k}"
-        if cname not in dfc.columns:
-            dfc[cname] = ""
-
+    
     # Normalize
     dfc["Programme"] = dfc["Programme"].apply(lambda x: f"{int(pd.to_numeric(x, errors='coerce')):03}" if str(x).strip()!="" else "")
     dfc["Saison"] = pd.to_numeric(dfc["Saison"], errors="coerce").fillna(1).astype(int)
@@ -124,7 +109,7 @@ def generer_planning():
     dates_fenetre = [today + timedelta(days=i) for i in range(NB_JOURS)]
     print(f"[DEBUG] today={today} NB_JOURS={NB_JOURS} dates={dates_fenetre}")
 
-    # Read Types mapping from 'Types'
+    # Read Types mapping
     types_id_to_label, types_label_to_id = {}, {}
     try:
         ws_types = doc_programmes.worksheet("Types")
@@ -141,21 +126,24 @@ def generer_planning():
     except Exception:
         pass
 
-    # Generate planning rows WITHOUT type; include internal _slot
+    # Generate planning rows
     rows = []
     skips = {"client_vide":0,"canalid_vide":0,"date_invalide":0,"sans_heure":0}
     for _, r in dfc.iterrows():
         client_name = str(r["Client"]).strip()
+        societe = str(r["Societe"]).strip()
+        email = str(r["Email"]).strip()
         chat_id = str(r["Canal ID"]).strip()
         prog = str(r["Programme"]).strip()
         saison = int(r["Saison"])
         start = r["Date de Démarrage"]
         jours = r["Jours de Diffusion"]
+        
         if not client_name: skips["client_vide"]+=1; continue
         if not chat_id: skips["canalid_vide"]+=1; continue
         if pd.isna(start): skips["date_invalide"]+=1; continue
 
-        # avancement counting only diffusion days
+        # Avancement counting
         max_d = max(dates_fenetre)
         cnt=0; adv_by_date={}
         cur = start.date()
@@ -169,19 +157,20 @@ def generer_planning():
             if len(jours)!=0 and _weekday_fr(d) not in jours:
                 continue
             adv = int(adv_by_date.get(d,0))
-            # Build slots 1..3
             for k in (1,2,3):
                 h = r.get(f"Heure envoi {k}", "")
                 if not h:
                     continue
                 rows.append({
                     "client": client_name,
+                    "societe": societe,
+                    "email_client": email,
                     "programme": prog,
                     "saison": saison,
                     "chat_id": chat_id,
                     "date": d.strftime("%Y-%m-%d"),
                     "heure": h,
-                    "type": "",  # will be filled later
+                    "type": "",
                     "avancement": adv,
                     "message": "",
                     "format": "",
@@ -200,7 +189,7 @@ def generer_planning():
 
     # Read existing planning
     records = ws_planning.get_all_records()
-    cols_plan = ["client","programme","saison","chat_id","date","heure","type","avancement","message","format","url","envoye"]
+    cols_plan = ["client","societe","email_client","programme","saison","chat_id","date","heure","type","avancement","message","format","url","envoye"]
     if records:
         dfe = pd.DataFrame(records)
         for c in cols_plan:
@@ -209,7 +198,7 @@ def generer_planning():
     else:
         dfe = pd.DataFrame(columns=cols_plan)
 
-    # Normalize keys before merge
+    # Normalize
     if not dfn.empty:
         _normalize_key_columns(dfn)
     if not dfe.empty:
@@ -221,14 +210,12 @@ def generer_planning():
         cutoff = today - timedelta(days=RETENTION)
         dfe = dfe[dfe["_date_obj"].notna() & (dfe["_date_obj"]>=cutoff)].drop(columns=["_date_obj"])
 
-    # Merge & dedup
+    # Merge
     key_cols = ["client","programme","saison","chat_id","date","heure"]
-    # NOTE: exclude 'type' from key since it's now filled post-merge
     dfm = pd.concat([dfe, dfn], ignore_index=True)
     dfm.drop_duplicates(subset=key_cols, keep="first", inplace=True)
 
-    # ==== Fill messages / type from programme tabs ====
-    # Preload programme tabs
+    # Fill messages/type from programmes
     cache_prog = {}
     def get_prog_df(prog):
         prog = str(prog).zfill(3)
@@ -237,19 +224,18 @@ def generer_planning():
         try:
             ws = doc_programmes.worksheet(prog)
             dfp = pd.DataFrame(ws.get_all_records())
-            for c in ["Support","Saison","Jour","Type","Phrase","Format","Url"]:
+            for c in ["Support","Saison","Jour","Type","Phrase","Format","Url","Options Réponses"]:
                 if c not in dfp.columns: dfp[c] = ""
             dfp["Saison"] = pd.to_numeric(dfp["Saison"], errors="coerce").fillna(1).astype(int)
             dfp["Jour"] = pd.to_numeric(dfp["Jour"], errors="coerce").fillna(1).astype(int)
             dfp["Type"] = pd.to_numeric(dfp["Type"], errors="coerce").astype("Int64")
         except Exception:
-            dfp = pd.DataFrame(columns=["Support","Saison","Jour","Type","Phrase","Format","Url"])
+            dfp = pd.DataFrame(columns=["Support","Saison","Jour","Type","Phrase","Format","Url","Options Réponses"])
         cache_prog[prog]=dfp
         return dfp
 
-    # Determine slot position for rows (if _slot missing because it came from existing dfe)
+    # Compute slot indices
     def compute_slot_indices(group):
-        # sort by heure then assign slot 1..3
         temp = group.copy()
         temp["_slot"] = pd.to_datetime(temp["heure"], format="%H:%M:%S", errors="coerce")
         temp = temp.sort_values("_slot", kind="stable")
@@ -259,17 +245,6 @@ def generer_planning():
     if "_slot" not in dfm.columns or dfm["_slot"].isna().any():
         dfm["_slot"] = dfm.groupby(["client","programme","saison","date"]).apply(compute_slot_indices).reset_index(level=[0,1,2,3], drop=True)
 
-    # choose type_id per slot: prefer client-specified 'Type envoi k', else DEFAULT_SLOT_TYPE_IDS[k-1]
-    def type_id_for_row(r):
-        k = int(r.get("_slot", 1))
-        # find the client row to look up per-slot type override
-        # This mapping uses DEFAULT only; client override requires mapping by client name if needed.
-        # For simplicity use DEFAULT here:
-        try:
-            return int(DEFAULT_SLOT_TYPE_IDS[k-1])
-        except Exception:
-            return None
-
     labels, messages, formats, urls = [], [], [], []
     for idx, r in dfm.iterrows():
         prog = str(r["programme"]).zfill(3)
@@ -277,7 +252,6 @@ def generer_planning():
         jour = int(pd.to_numeric(r["avancement"], errors="coerce") or 1)
         dfp = get_prog_df(prog)
 
-        # pick k-th row for this (saison, jour) sorted by Type id, based on slot
         k = int(r.get("_slot", 1))
         subset = dfp[(dfp["Saison"]==saison) & (dfp["Jour"]==jour)].copy()
         subset = subset.sort_values("Type")
@@ -288,8 +262,27 @@ def generer_planning():
             type_id = int(val) if pd.notna(val) else 0
             label = types_id_to_label.get(type_id, str(type_id))
             labels.append(label)
-            messages.append(f"Saison {saison} - Jour {jour} : \n{label} : {rec.get('Phrase','')}")
+            
+            # Pour les sondages (Type 6 ou 7), formater avec options
+            if type_id in [6, 7]:
+                options_str = str(rec.get("Options Réponses", "")).strip()
+                if options_str:
+                    # Format: Date\nQuestion\nOption1\nOption2\n...
+                    date_str = f"{r['date']}"
+                    question = str(rec.get("Phrase", "")).strip()
+                    options = options_str.split(";")
+                    
+                    message_lines = [date_str, question] + options
+                    messages.append("\n".join(message_lines))
+                else:
+                    messages.append(f"Saison {saison} - Jour {jour} : \n{label} : {rec.get('Phrase','')}")
+            else:
+                messages.append(f"Saison {saison} - Jour {jour} : \n{label} : {rec.get('Phrase','')}")
+            
             fmt = str(rec.get("Format","texte")).strip().lower() or "texte"
+            # Tous les sondages Type 6 et 7 ont format "sondage"
+            if type_id in [6, 7]:
+                fmt = "sondage"
             formats.append(fmt)
             urls.append(str(rec.get("Url","")))
         else:
@@ -303,7 +296,7 @@ def generer_planning():
     dfm["format"] = formats
     dfm["url"] = urls
 
-    # Sort by date then time (as strings standardized), to avoid tz warnings
+    # Sort
     dfm["date_norm"] = dfm["date"].apply(lambda x: pd.to_datetime(x, format="%Y-%m-%d", errors="coerce"))
     dfm["heure_norm"] = pd.to_datetime(dfm["heure"], format="%H:%M:%S", errors="coerce")
     dfm = dfm.sort_values(["date_norm","heure_norm"]).drop(columns=["date_norm","heure_norm","_slot"], errors="ignore")
@@ -315,9 +308,7 @@ def generer_planning():
     ws_planning.update([dfm.columns.tolist()] + dfm.values.tolist())
     print(f"[DEBUG] Total par date (après fusion): {dfm['date'].value_counts().to_dict()}\n📅 Mise à jour planning à {datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
-    # === Mise à jour "Date de Fin" dans la feuille Clients (si vide) ===
-
-    # 1) S'assurer que la colonne existe
+    # Mise à jour Date de Fin dans Clients
     header = ws_clients.row_values(1)
     if "Date de Fin" not in header:
         all_vals = ws_clients.get_all_values()
@@ -327,16 +318,14 @@ def generer_planning():
         else:
             ws_clients.update("A1", [header])
         header = ws_clients.row_values(1)
-    date_fin_col_idx = header.index("Date de Fin") + 1  # index 1-based
+    date_fin_col_idx = header.index("Date de Fin") + 1
 
-    # 2) Cache du nombre de jours par (programme, saison)
     nb_jours_cache = {}
-
     def _nb_jours_for(prog: str, saison: int):
         key = (prog, int(saison))
         if key in nb_jours_cache:
             return nb_jours_cache[key]
-        dfp = get_prog_df(prog)  # utilise le cache_prog défini plus haut
+        dfp = get_prog_df(prog)
         if dfp is None or dfp.empty:
             nb_jours_cache[key] = None
             return None
@@ -350,9 +339,8 @@ def generer_planning():
         nb_jours_cache[key] = nb
         return nb
 
-    # 3) Construire les updates pour chaque client sans "Date de Fin"
     updates = []
-    for i, (_, r) in enumerate(dfc.iterrows(), start=2):  # lignes sheet = 2..N
+    for i, (_, r) in enumerate(dfc.iterrows(), start=2):
         current_fin = str(r.get("Date de Fin", "")).strip()
         if current_fin:
             continue
@@ -378,14 +366,12 @@ def generer_planning():
         if not nb or nb <= 0:
             continue
 
-        # Jours de diffusion : déjà normalisés plus haut (set de libellés FR)
         jours = r.get("Jours de Diffusion", set())
         if isinstance(jours, (list, tuple, set)):
             jours_set = {str(x).strip().lower() for x in jours}
         else:
             jours_set = {p.strip().lower() for p in str(jours).replace(";", ",").split(",") if p.strip()}
 
-        # 4) Simuler les jours de diffusion pour trouver la dernière date
         count = 0
         cur = start_dt.date()
         last = cur
@@ -397,7 +383,6 @@ def generer_planning():
 
         updates.append((i, last.strftime("%Y-%m-%d")))
 
-    # 5) Batch update
     if updates:
         data_body = {
             "valueInputOption": "RAW",
