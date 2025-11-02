@@ -219,10 +219,10 @@ def _post_with_retry(url, payload):
 
     return False, "max_retries_exceeded"
 
-def process_poll_updates_and_save(client, planning_data):
+def process_poll_updates_and_save(client):
     """
     Récupère les réponses aux sondages et les enregistre dans Réponses Sondages.
-    planning_data: dict avec clés poll_id -> {programme, saison, jour, societe, date_envoi, type_sondage}
+    Les infos manquantes (programme, saison, etc.) sont laissées vides pour l'instant.
     """
     tz = _tz()
     
@@ -241,7 +241,10 @@ def process_poll_updates_and_save(client, planning_data):
         
         results = data.get("result", [])
         if not results:
+            print("ℹ️ Aucune réponse de sondage à récupérer")
             return
+        
+        print(f"🔍 {len(results)} update(s) reçu(s) de Telegram")
         
         # Construire mapping poll_id -> (question, options)
         poll_data = {}
@@ -252,6 +255,7 @@ def process_poll_updates_and_save(client, planning_data):
                 question = poll.get("question", "")
                 options = [opt.get("text", "") for opt in poll.get("options", [])]
                 poll_data[poll_id] = (question, options)
+                print(f"  📊 Poll trouvé: {poll_id[:20]}... - {question[:50]}...")
         
         # Ouvrir feuille Réponses Sondages
         ws_reponses = client.open(config.FICHIER_PLANNING).worksheet(config.FEUILLE_REPONSES_SONDAGES)
@@ -263,9 +267,9 @@ def process_poll_updates_and_save(client, planning_data):
                    "Commentaire", "Type Sondage"]
         if not header or header != expected:
             ws_reponses.update("A1", [expected])
+            print("✅ En-têtes 'Réponses Sondages' créés")
         
         nouvelles_reponses = []
-        commentaires_pending = {}  # Pour gérer les "Autre :"
         
         for update in results:
             if "poll_answer" not in update:
@@ -283,14 +287,7 @@ def process_poll_updates_and_save(client, planning_data):
             
             timestamp = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
             
-            # Récupérer infos depuis planning_data
-            poll_info = planning_data.get(poll_id, {})
-            programme = poll_info.get("programme", "")
-            saison = poll_info.get("saison", "")
-            jour = poll_info.get("jour", "")
-            societe = poll_info.get("societe", "")
-            date_envoi = poll_info.get("date_envoi", "")
-            type_sondage = poll_info.get("type_sondage", "Sondage")
+            print(f"  👤 Réponse de {first_name} {last_name} (@{username})")
             
             question, options = poll_data.get(poll_id, ("Question inconnue", []))
             
@@ -307,59 +304,50 @@ def process_poll_updates_and_save(client, planning_data):
                     reponses_texte.append(f"Option {idx}")
             
             reponses_str = ", ".join(reponses_texte)
+            print(f"     Réponse: {reponses_str}")
             
             # Si "Autre :" sélectionné, demander commentaire
             if autre_selectionne:
-                # Envoyer message pour demander commentaire
                 try:
-                    chat_id = user_id  # En mode privé
-                    send_telegram_message(chat_id, "Pouvez-vous préciser ?")
-                    commentaires_pending[user_id] = {
-                        "user_id": str(user_id),
-                        "prenom": first_name,
-                        "nom": last_name,
-                        "societe": societe,
-                        "username": username,
-                        "timestamp": timestamp,
-                        "date_envoi": date_envoi,
-                        "programme": programme,
-                        "saison": saison,
-                        "jour": jour,
-                        "question": question,
-                        "reponse": reponses_str,
-                        "type_sondage": type_sondage
-                    }
+                    chat_id = user_id
+                    send_telegram_message(chat_id, config.MESSAGE_COMMENTAIRE)
+                    print(f"     💬 Message commentaire envoyé")
                 except Exception as e:
-                    print(f"⚠️ Erreur demande commentaire: {e}")
+                    print(f"     ⚠️ Erreur envoi message commentaire: {e}")
             
+            # Pour l'instant, on laisse Programme/Saison/Jour vides
+            # Ces infos nécessiteraient de matcher le poll_id avec le planning
             nouvelles_reponses.append([
                 str(user_id),
                 first_name,
                 last_name,
-                societe,
+                "",  # Société (à remplir manuellement ou via amélioration future)
                 username,
                 timestamp,
-                date_envoi,
-                programme,
-                saison,
-                jour,
+                "",  # Date Envoi (à remplir manuellement ou via amélioration future)
+                "",  # Programme (à remplir manuellement ou via amélioration future)
+                "",  # Saison
+                "",  # Jour
                 question,
                 reponses_str,
-                "",  # Commentaire (sera rempli après)
-                type_sondage
+                "",  # Commentaire (sera rempli si l'utilisateur répond au message)
+                "Sondage"  # Type par défaut
             ])
         
         if nouvelles_reponses:
             ws_reponses.append_rows(nouvelles_reponses)
-            print(f"📊 {len(nouvelles_reponses)} réponse(s) de sondage enregistrée(s)")
+            print(f"✅ {len(nouvelles_reponses)} réponse(s) de sondage enregistrée(s)")
         
         # Confirmer updates
         if results:
             last_update_id = max(u.get("update_id", 0) for u in results)
             requests.get(f"{API_BASE}/getUpdates", params={"offset": last_update_id + 1}, timeout=5)
+            print(f"✅ Updates confirmés jusqu'à ID {last_update_id}")
     
     except Exception as e:
         print(f"⚠️ Erreur traitement réponses: {e}")
+        import traceback
+        traceback.print_exc()
 
 # ======================
 # Main
@@ -391,11 +379,8 @@ def lancer_bot():
     except Exception as e:
         print(f"⚠️ Erreur vérification feuille: {e}")
 
-    # Préparer dict pour tracking polls
-    planning_polls = {}  # poll_id -> infos
-
     # Traiter réponses sondages précédents
-    process_poll_updates_and_save(client, planning_polls)
+    process_poll_updates_and_save(client)
 
     # Lire planning
     ws_planning = client.open(config.FICHIER_PLANNING).worksheet(config.FEUILLE_PLANNING)
@@ -493,17 +478,6 @@ def lancer_bot():
                         is_anonymous=True,
                         allows_multiple_answers=allows_multiple
                     )
-                    
-                    # Stocker infos pour récupération réponses
-                    if success and poll_id:
-                        planning_polls[poll_id] = {
-                            "programme": programme,
-                            "saison": saison,
-                            "jour": jour,
-                            "societe": societe,
-                            "date_envoi": date_envoi,
-                            "type_sondage": type_label
-                        }
                 else:
                     success = False
                     err = "format_sondage_invalide"
