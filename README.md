@@ -14,7 +14,7 @@
 - Envoi des messages Telegram dans les bons canaux à l’heure prévue.
 - Scripts autonomes et reconfigurables (pas besoin de coder pour changer les réglages).
 - Automatisation complète (cron GitHub Actions, logs…).
-- Sécurité via gestion des secrets GitHub.
+- Sécurité via gestion des secrets GitHub
 
 ---
 
